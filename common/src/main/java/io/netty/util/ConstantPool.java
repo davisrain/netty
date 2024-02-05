@@ -54,6 +54,7 @@ public abstract class ConstantPool<T extends Constant<T>> {
      * @param name the name of the {@link Constant}
      */
     public T valueOf(String name) {
+        // 检查传入的name是否为空，如果部位空，调用getOrCreate方法
         return getOrCreate(checkNonEmpty(name, "name"));
     }
 
@@ -63,15 +64,20 @@ public abstract class ConstantPool<T extends Constant<T>> {
      * @param name the name of the {@link Constant}
      */
     private T getOrCreate(String name) {
+        // 尝试从map中获取对应的name的constant
         T constant = constants.get(name);
+        // 如果不存在
         if (constant == null) {
+            // 创建一个常量，传入id和name
             final T tempConstant = newConstant(nextId(), name);
+            // 以name作为key，放入到constants这个map中
             constant = constants.putIfAbsent(name, tempConstant);
             if (constant == null) {
                 return tempConstant;
             }
         }
 
+        // 返回常量
         return constant;
     }
 
