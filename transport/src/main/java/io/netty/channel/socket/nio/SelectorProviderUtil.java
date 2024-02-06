@@ -36,6 +36,7 @@ final class SelectorProviderUtil {
     static Method findOpenMethod(String methodName) {
         if (PlatformDependent.javaVersion() >= 15) {
             try {
+                // 尝试查找SelectorProvider中带ProtocolFamily参数的方法，当java版本大于jdk15的时候
                 return SelectorProvider.class.getMethod(methodName, java.net.ProtocolFamily.class);
             } catch (Throwable e) {
                 logger.debug("SelectorProvider.{}(ProtocolFamily) not available, will use default", methodName, e);

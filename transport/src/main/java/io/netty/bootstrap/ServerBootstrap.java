@@ -132,9 +132,12 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
 
     @Override
     void init(Channel channel) {
+        // 将options中持有的ChannelOption设置进Channel的config中
         setChannelOptions(channel, newOptionsArray(), logger);
+        // 将attrs中持有的AttributeKey以及value设置进Channel中
         setAttributes(channel, newAttributesArray());
 
+        // 获取channel中的pipeline
         ChannelPipeline p = channel.pipeline();
 
         final EventLoopGroup currentChildGroup = childGroup;
@@ -142,18 +145,23 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         final Entry<ChannelOption<?>, Object>[] currentChildOptions = newOptionsArray(childOptions);
         final Entry<AttributeKey<?>, Object>[] currentChildAttrs = newAttributesArray(childAttrs);
 
+        // 向pipeline中添加一个ChannelInitializer
         p.addLast(new ChannelInitializer<Channel>() {
             @Override
             public void initChannel(final Channel ch) {
                 final ChannelPipeline pipeline = ch.pipeline();
+                // 获取持有的parent的ChannelHandler
                 ChannelHandler handler = config.handler();
+                // 如果不为null，添加进pipeline中
                 if (handler != null) {
                     pipeline.addLast(handler);
                 }
 
+                // 获取当前channel注册进的eventLoop，执行runnable
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {
+                        // 向pipeline中添加一个ChannelInboundHandler，用于接收客户端的请求
                         pipeline.addLast(new ServerBootstrapAcceptor(
                                 ch, currentChildGroup, currentChildHandler, currentChildOptions, currentChildAttrs));
                     }
