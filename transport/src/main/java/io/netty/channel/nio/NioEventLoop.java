@@ -139,10 +139,13 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     NioEventLoop(NioEventLoopGroup parent, Executor executor, SelectorProvider selectorProvider,
                  SelectStrategy strategy, RejectedExecutionHandler rejectedExecutionHandler,
                  EventLoopTaskQueueFactory taskQueueFactory, EventLoopTaskQueueFactory tailTaskQueueFactory) {
+        // 将任务队列创建出来，调用父类构造方法
         super(parent, executor, false, newTaskQueue(taskQueueFactory), newTaskQueue(tailTaskQueueFactory),
                 rejectedExecutionHandler);
+        // 持有selectorProvider和selectStrategy
         this.provider = ObjectUtil.checkNotNull(selectorProvider, "selectorProvider");
         this.selectStrategy = ObjectUtil.checkNotNull(strategy, "selectStrategy");
+        // 获取并持有selector
         final SelectorTuple selectorTuple = openSelector();
         this.selector = selectorTuple.selector;
         this.unwrappedSelector = selectorTuple.unwrappedSelector;
@@ -150,9 +153,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     private static Queue<Runnable> newTaskQueue(
             EventLoopTaskQueueFactory queueFactory) {
+        // 如果 队列工厂为null，调用newTaskQueue0方法创建任务队列，并且传入最大的pending任务数
         if (queueFactory == null) {
             return newTaskQueue0(DEFAULT_MAX_PENDING_TASKS);
         }
+        // 否则，调用队列工厂进行创建
         return queueFactory.newTaskQueue(DEFAULT_MAX_PENDING_TASKS);
     }
 
@@ -174,6 +179,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     private SelectorTuple openSelector() {
         final Selector unwrappedSelector;
         try {
+            // 通过provider获取未包装的selector
             unwrappedSelector = provider.openSelector();
         } catch (IOException e) {
             throw new ChannelException("failed to open a new selector", e);

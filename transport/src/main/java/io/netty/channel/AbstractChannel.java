@@ -468,22 +468,28 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             ObjectUtil.checkNotNull(eventLoop, "eventLoop");
+            // 如果该channel已经被注册过了，向promise中设置异常，然后返回
             if (isRegistered()) {
                 promise.setFailure(new IllegalStateException("registered to an event loop already"));
                 return;
             }
+            // 如果eventLoop类型和channel不兼容，设置异常
             if (!isCompatible(eventLoop)) {
                 promise.setFailure(
                         new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
                 return;
             }
 
+            // 设置channel的eventLoop属性为传入的eventLoop
             AbstractChannel.this.eventLoop = eventLoop;
 
+            // 判断当前线程是否是eventLoop中持有的线程
             if (eventLoop.inEventLoop()) {
+                // 如果是，调用register0方法进行注册
                 register0(promise);
             } else {
                 try {
+                    // 否则调用eventLoop的execute方法进行注册
                     eventLoop.execute(new Runnable() {
                         @Override
                         public void run() {

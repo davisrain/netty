@@ -167,7 +167,9 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                                         RejectedExecutionHandler rejectedHandler) {
         super(parent);
         this.addTaskWakesUp = addTaskWakesUp;
+        // 设置最大pending的任务数
         this.maxPendingTasks = DEFAULT_MAX_PENDING_EXECUTOR_TASKS;
+        // 将executor进行包装，将eventExecutor设置进FastThreadLocal中
         this.executor = ThreadExecutorMap.apply(executor, this);
         this.taskQueue = ObjectUtil.checkNotNull(taskQueue, "taskQueue");
         this.rejectedExecutionHandler = ObjectUtil.checkNotNull(rejectedHandler, "rejectedHandler");

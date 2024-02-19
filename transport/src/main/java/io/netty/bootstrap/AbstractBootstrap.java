@@ -316,21 +316,28 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             // 调用init方法初始化Channel
             init(channel);
         } catch (Throwable t) {
+            // 如果出现了异常，并且channel不为null
             if (channel != null) {
                 // channel can be null if newChannel crashed (eg SocketException("too many open files"))
+                // 调用channel的unsafe的closeForcibly方法，强制进行关闭
                 channel.unsafe().closeForcibly();
                 // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
+                //
                 return new DefaultChannelPromise(channel, GlobalEventExecutor.INSTANCE).setFailure(t);
             }
             // as the Channel is not registered yet we need to force the usage of the GlobalEventExecutor
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        // 获取abstractBootstrap的eventLoopGroup，将channel注册进group中
         ChannelFuture regFuture = config().group().register(channel);
+        // 如果future存在异常
         if (regFuture.cause() != null) {
+            // 如果channel已经被注册进eventLoop了，调用close方法
             if (channel.isRegistered()) {
                 channel.close();
             } else {
+                // 否则调用channel持有的unsafe的closeForcibly方法
                 channel.unsafe().closeForcibly();
             }
         }

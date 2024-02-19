@@ -67,6 +67,7 @@ public class DefaultThreadFactory implements ThreadFactory {
     public static String toPoolName(Class<?> poolType) {
         ObjectUtil.checkNotNull(poolType, "poolType");
 
+        // 使用类型的简单名称作为poolName
         String poolName = StringUtil.simpleClassName(poolType);
         switch (poolName.length()) {
             case 0:
@@ -74,6 +75,7 @@ public class DefaultThreadFactory implements ThreadFactory {
             case 1:
                 return poolName.toLowerCase(Locale.US);
             default:
+                // 使用小驼峰
                 if (Character.isUpperCase(poolName.charAt(0)) && Character.isLowerCase(poolName.charAt(1))) {
                     return Character.toLowerCase(poolName.charAt(0)) + poolName.substring(1);
                 } else {
@@ -118,6 +120,7 @@ public class DefaultThreadFactory implements ThreadFactory {
     }
 
     protected Thread newThread(Runnable r, String name) {
+        // 创建一个FastThreadLocalThread类型的线程返回
         return new FastThreadLocalThread(threadGroup, r, name);
     }
 }

@@ -76,9 +76,12 @@ final class ChannelHandlerMask {
     static int mask(Class<? extends ChannelHandler> clazz) {
         // Try to obtain the mask from the cache first. If this fails calculate it and put it in the cache for fast
         // lookup in the future.
+        // 尝试从threadLocal的缓存中获取mask
         Map<Class<? extends ChannelHandler>, Integer> cache = MASKS.get();
         Integer mask = cache.get(clazz);
+        // 如果不存在
         if (mask == null) {
+            // 计算出mask，然后放入缓存中
             mask = mask0(clazz);
             cache.put(clazz, mask);
         }
@@ -89,11 +92,18 @@ final class ChannelHandlerMask {
      * Calculate the {@code executionMask}.
      */
     private static int mask0(Class<? extends ChannelHandler> handlerType) {
+        // 该方法用于计算对应的handler类型可以执行的方法有哪些
+        // exceptionCaught方法默认都能够执行
         int mask = MASK_EXCEPTION_CAUGHT;
         try {
+            // 如果handler是ChannelInboundHandler类型的
             if (ChannelInboundHandler.class.isAssignableFrom(handlerType)) {
+                // 先将所有inbound的方法的二进制设置为1
                 mask |= MASK_ALL_INBOUND;
 
+                // 判断对应的handler类型是否可以跳过对应的方法，如果方法不存在的话，不能跳过；
+                // 如果方法存在，并且标注了@Skip注解，那么需要跳过。
+                // 如果是需要跳过的，将对应的二进制位设置为0
                 if (isSkippable(handlerType, "channelRegistered", ChannelHandlerContext.class)) {
                     mask &= ~MASK_CHANNEL_REGISTERED;
                 }
@@ -120,9 +130,12 @@ final class ChannelHandlerMask {
                 }
             }
 
+            // 如果handler是ChannelOutboundHandler类型的
             if (ChannelOutboundHandler.class.isAssignableFrom(handlerType)) {
+                // 将所有outbound的方法对应的二进制位设置为1
                 mask |= MASK_ALL_OUTBOUND;
 
+                // 判断指定的方法是否需要跳过
                 if (isSkippable(handlerType, "bind", ChannelHandlerContext.class,
                         SocketAddress.class, ChannelPromise.class)) {
                     mask &= ~MASK_BIND;
@@ -152,6 +165,7 @@ final class ChannelHandlerMask {
                 }
             }
 
+            // 最后判断exceptionCaught方法是否需要跳过
             if (isSkippable(handlerType, "exceptionCaught", ChannelHandlerContext.class, Throwable.class)) {
                 mask &= ~MASK_EXCEPTION_CAUGHT;
             }

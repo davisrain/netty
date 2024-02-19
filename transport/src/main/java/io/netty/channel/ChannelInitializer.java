@@ -104,14 +104,17 @@ public abstract class ChannelInitializer<C extends Channel> extends ChannelInbou
      */
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+        // 如果ctx所在的pipeline的channel 已经 注册到eventLoop中了
         if (ctx.channel().isRegistered()) {
             // This should always be true with our current DefaultChannelPipeline implementation.
             // The good thing about calling initChannel(...) in handlerAdded(...) is that there will be no ordering
             // surprises if a ChannelInitializer will add another ChannelInitializer. This is as all handlers
             // will be added in the expected order.
+            // 调用initChannel方法
             if (initChannel(ctx)) {
 
                 // We are done with init the Channel, removing the initializer now.
+                // 将initializer状态只为removeComplete
                 removeState(ctx);
             }
         }
@@ -119,20 +122,26 @@ public abstract class ChannelInitializer<C extends Channel> extends ChannelInbou
 
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        // 将ctx从initMap中删除
         initMap.remove(ctx);
     }
 
     @SuppressWarnings("unchecked")
     private boolean initChannel(ChannelHandlerContext ctx) throws Exception {
+        // 将context添加到initMap中
         if (initMap.add(ctx)) { // Guard against re-entrance.
             try {
+                // 调用initChannel方法，将ctx所在的channel传入
                 initChannel((C) ctx.channel());
             } catch (Throwable cause) {
                 // Explicitly call exceptionCaught(...) as we removed the handler before calling initChannel(...).
                 // We do so to prevent multiple calls to initChannel(...).
+                // 如果出现异常，调用exceptionCaught方法
                 exceptionCaught(ctx, cause);
             } finally {
+                // 如果ctx不是removeComplete状态
                 if (!ctx.isRemoved()) {
+                    // 将其从pipeline中删除
                     ctx.pipeline().remove(this);
                 }
             }

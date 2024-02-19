@@ -103,9 +103,13 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     AbstractChannelHandlerContext(DefaultChannelPipeline pipeline, EventExecutor executor,
                                   String name, Class<? extends ChannelHandler> handlerClass) {
+        // 持有唯一的name
         this.name = ObjectUtil.checkNotNull(name, "name");
+        // 持有自身属于的pipeline
         this.pipeline = pipeline;
+        // 持有用于执行的eventExecutor
         this.executor = executor;
+        // 获取handlerClass可以执行的方法的mask
         this.executionMask = mask(handlerClass);
         // Its ordered if its driven by the EventLoop or the given Executor is an instanceof OrderedEventExecutor.
         ordered = executor == null || executor instanceof OrderedEventExecutor;
@@ -1090,12 +1094,14 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     final boolean setAddComplete() {
         for (;;) {
             int oldState = handlerState;
+            // 如果oldState是removeComplete的话，直接返回false
             if (oldState == REMOVE_COMPLETE) {
                 return false;
             }
             // Ensure we never update when the handlerState is REMOVE_COMPLETE already.
             // oldState is usually ADD_PENDING but can also be REMOVE_COMPLETE when an EventExecutor is used that is not
             // exposing ordering guarantees.
+            // 否则使用cas将handlerState更新为addComplete状态
             if (HANDLER_STATE_UPDATER.compareAndSet(this, oldState, ADD_COMPLETE)) {
                 return true;
             }
@@ -1110,7 +1116,9 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     final void callHandlerAdded() throws Exception {
         // We must call setAddComplete before calling handlerAdded. Otherwise if the handlerAdded method generates
         // any pipeline events ctx.handler() will miss them because the state will not allow it.
+        // 将context的状态设置为addComplete
         if (setAddComplete()) {
+            // 调用handler的handlerAdded方法
             handler().handlerAdded(this);
         }
     }
@@ -1118,11 +1126,13 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     final void callHandlerRemoved() throws Exception {
         try {
             // Only call handlerRemoved(...) if we called handlerAdded(...) before.
+            // 如果状态是addComplete的，那么调用handler的handlerRemoved方法
             if (handlerState == ADD_COMPLETE) {
                 handler().handlerRemoved(this);
             }
         } finally {
             // Mark the handler as removed in any case.
+            // 否则，直接将context的状态设置为removed
             setRemoved();
         }
     }

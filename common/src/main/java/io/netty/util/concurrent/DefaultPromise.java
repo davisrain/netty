@@ -177,10 +177,12 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     public Promise<V> addListener(GenericFutureListener<? extends Future<? super V>> listener) {
         checkNotNull(listener, "listener");
 
+        // 调用addListener0方法，注册监听器
         synchronized (this) {
             addListener0(listener);
         }
 
+        // 如果该future已经完成了，通知监听器
         if (isDone()) {
             notifyListeners();
         }
@@ -596,15 +598,23 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     private void addListener0(GenericFutureListener<? extends Future<? super V>> listener) {
+        // 如果listener为null
         if (this.listener == null) {
+            // 并且listeners也为null，赋值给listener
             if (listeners == null) {
                 this.listener = listener;
             } else {
+                // 否则添加到listeners中
                 listeners.add(listener);
             }
-        } else {
+        }
+        // 如果listener不为null
+        else {
+            // 判断listeners要为null
             assert listeners == null;
+            // 将原本的和本次要添加的组合成listeners
             listeners = new DefaultFutureListeners(this.listener, listener);
+            // 将listener设置为null
             this.listener = null;
         }
     }

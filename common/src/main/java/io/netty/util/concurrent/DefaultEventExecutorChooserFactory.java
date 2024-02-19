@@ -32,7 +32,9 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
     @Override
     public EventExecutorChooser newChooser(EventExecutor[] executors) {
+        // 判断eventExecutor数组长度是否是2的幂次方
         if (isPowerOfTwo(executors.length)) {
+            // 如果是的话，创建2的幂次方的选择器
             return new PowerOfTwoEventExecutorChooser(executors);
         } else {
             return new GenericEventExecutorChooser(executors);
@@ -40,6 +42,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
     }
 
     private static boolean isPowerOfTwo(int val) {
+        // 判断是否是2的幂次方
         return (val & -val) == val;
     }
 
@@ -52,6 +55,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
         }
 
         @Override
+        // 如果是二的幂次方，使用位与的方式，更快
         public EventExecutor next() {
             return executors[idx.getAndIncrement() & executors.length - 1];
         }
@@ -69,6 +73,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
         }
 
         @Override
+        // 使用取余的方式
         public EventExecutor next() {
             return executors[(int) Math.abs(idx.getAndIncrement() % executors.length)];
         }

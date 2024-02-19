@@ -372,6 +372,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
     @Override
     protected boolean isCompatible(EventLoop loop) {
+        // 只兼容NioEventLoop类型的
         return loop instanceof NioEventLoop;
     }
 

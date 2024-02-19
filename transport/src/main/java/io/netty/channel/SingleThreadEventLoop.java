@@ -34,6 +34,7 @@ import java.util.concurrent.ThreadFactory;
  */
 public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor implements EventLoop {
 
+    // 获取最大的pending任务数
     protected static final int DEFAULT_MAX_PENDING_TASKS = Math.max(16,
             SystemPropertyUtil.getInt("io.netty.eventLoop.maxPendingTasks", Integer.MAX_VALUE));
 
@@ -80,12 +81,14 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
 
     @Override
     public ChannelFuture register(Channel channel) {
+        // 根据channel和自身创建一个Promise，然后传入重载的register方法
         return register(new DefaultChannelPromise(channel, this));
     }
 
     @Override
     public ChannelFuture register(final ChannelPromise promise) {
         ObjectUtil.checkNotNull(promise, "promise");
+        // 获取promise的channel的unsafe对象，调用其register方法
         promise.channel().unsafe().register(this, promise);
         return promise;
     }
