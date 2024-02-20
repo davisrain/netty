@@ -675,6 +675,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     final void invokeHandlerAddedIfNeeded() {
         assert channel.eventLoop().inEventLoop();
         if (firstRegistration) {
+            // 将首次注册设置为false，保证只执行该方法一次
             firstRegistration = false;
             // We are now registered to the EventLoop. It's time to call the callbacks for the ChannelHandlers,
             // that were added before the registration was done.
@@ -1137,8 +1138,10 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             // This Channel itself was registered.
             registered = true;
 
+            // 获取延迟执行的handlerCallback的链表头
             pendingHandlerCallbackHead = this.pendingHandlerCallbackHead;
             // Null out so it can be GC'ed.
+            // 设置为null，帮助后续gc
             this.pendingHandlerCallbackHead = null;
         }
 
@@ -1146,6 +1149,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         // holding the lock and so produce a deadlock if handlerAdded(...) will try to add another handler from outside
         // the EventLoop.
         PendingHandlerCallback task = pendingHandlerCallbackHead;
+        // 遍历链表，执行handlerCallback逻辑
         while (task != null) {
             task.execute();
             task = task.next;
@@ -1420,6 +1424,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void channelRegistered(ChannelHandlerContext ctx) {
             invokeHandlerAddedIfNeeded();
+            // 调用ctx 的fireChannelRegistered方法
             ctx.fireChannelRegistered();
         }
 
@@ -1498,10 +1503,13 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         void execute() {
+            // 获取handlerContext中的executor，如果为null的话，会获取到channel的eventLoop
             EventExecutor executor = ctx.executor();
+            // 如果当前线程就是eventExecutor中的线程的话，调用callHandlerAdded0方法
             if (executor.inEventLoop()) {
                 callHandlerAdded0(ctx);
             } else {
+                // 否则，使用executor来执行自身的run方法
                 try {
                     executor.execute(this);
                 } catch (RejectedExecutionException e) {
@@ -1510,7 +1518,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                                 "Can't invoke handlerAdded() as the EventExecutor {} rejected it, removing handler {}.",
                                 executor, ctx.name(), e);
                     }
+                    // 如果被拒绝执行了，那么将handlerCtx从pipeline中删除
                     atomicRemoveFromHandlerList(ctx);
+                    // 并且将ctx的状态设置为已删除
                     ctx.setRemoved();
                 }
             }

@@ -497,11 +497,15 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         }
                     });
                 } catch (Throwable t) {
+                    // 如果出现异常，打印日志
                     logger.warn(
                             "Force-closing a channel whose registration task was not accepted by an event loop: {}",
                             AbstractChannel.this, t);
+                    // 关闭channel
                     closeForcibly();
+                    // 设置closeFuture为成功状态
                     closeFuture.setClosed();
+                    // 设置promise的value为异常的包装对象CauseHolder
                     safeSetFailure(promise, t);
                 }
             }
@@ -511,26 +515,38 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
                 // call was outside of the eventLoop
+                // 如果promise设置uncancel失败了 或者 channel已经不再是open状态了，直接返回
                 if (!promise.setUncancellable() || !ensureOpen(promise)) {
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // 执行具体的注册逻辑
                 doRegister();
+                // 将neverRegistered设置为false
                 neverRegistered = false;
+                // 并且将registered设置为true
                 registered = true;
 
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
+                // 调用pipeline中的ChannelHandler的handlerAdded方法
                 pipeline.invokeHandlerAddedIfNeeded();
 
+                // 将promise中的result设置为SUCCESS
                 safeSetSuccess(promise);
+                // 调用pipeline中的handlerContext链表的channelRegistered方法
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
+                // 如果channel状态是active的
                 if (isActive()) {
+                    // 并且是第一次注册的
                     if (firstRegistration) {
+                        // 调用pipeline的fireChannelActive方法
                         pipeline.fireChannelActive();
-                    } else if (config().isAutoRead()) {
+                    }
+                    // 如果不是第一次注册 并且 autoRead为true，那么调用beginRead方法读取
+                    else if (config().isAutoRead()) {
                         // This channel was registered before and autoRead() is set. This means we need to begin read
                         // again so that we process inbound data.
                         //
@@ -540,8 +556,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 }
             } catch (Throwable t) {
                 // Close the channel directly to avoid FD leak.
+                // 调用doClose方法关闭javaNioChannel，释放文件描述符
                 closeForcibly();
+                // closeFuture的value设置为SUCCESS
                 closeFuture.setClosed();
+                // 向promise中设置异常
                 safeSetFailure(promise, t);
             }
         }
@@ -985,10 +1004,12 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         }
 
         protected final boolean ensureOpen(ChannelPromise promise) {
+            // 判断是否open，如果是，返回true
             if (isOpen()) {
                 return true;
             }
 
+            // 否则向promise设置异常，返回false
             safeSetFailure(promise, newClosedChannelException(initialCloseCause, "ensureOpen(ChannelPromise)"));
             return false;
         }

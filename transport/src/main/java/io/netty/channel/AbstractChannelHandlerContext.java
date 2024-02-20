@@ -112,6 +112,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         // 获取handlerClass可以执行的方法的mask
         this.executionMask = mask(handlerClass);
         // Its ordered if its driven by the EventLoop or the given Executor is an instanceof OrderedEventExecutor.
+        // 如果这个ctx是被eventLoop驱动的，那么ordered参数为true
         ordered = executor == null || executor instanceof OrderedEventExecutor;
     }
 
@@ -146,15 +147,18 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelHandlerContext fireChannelRegistered() {
+        // 查找到需要执行channelRegistered方法的context，然后调用静态invokeChannelRegistered方法
         invokeChannelRegistered(findContextInbound(MASK_CHANNEL_REGISTERED));
         return this;
     }
 
     static void invokeChannelRegistered(final AbstractChannelHandlerContext next) {
         EventExecutor executor = next.executor();
+        // 如果executor中的线程是当前线程，直接调用handlerCtx的channelRegistered方法
         if (executor.inEventLoop()) {
             next.invokeChannelRegistered();
         } else {
+            // 否则，使用executor来执行
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -170,9 +174,13 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
                 // DON'T CHANGE
                 // Duplex handlers implements both out/in interfaces causing a scalability issue
                 // see https://bugs.openjdk.org/browse/JDK-8180450
+                // 获取ctx持有的handler
                 final ChannelHandler handler = handler();
+                // 获取pipeline中的headContext
                 final DefaultChannelPipeline.HeadContext headContext = pipeline.head;
+                // 如果自身的handler是headContext
                 if (handler == headContext) {
+                    // 调用headContext的channelRegistered方法
                     headContext.channelRegistered(this);
                 } else if (handler instanceof ChannelDuplexHandler) {
                     ((ChannelDuplexHandler) handler).channelRegistered(this);
@@ -1057,7 +1065,9 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         AbstractChannelHandlerContext ctx = this;
         EventExecutor currentExecutor = executor();
         do {
+            // 获取ctx链表中的下一个元素
             ctx = ctx.next;
+            // 判断该ctx是否需要跳过该方法
         } while (skipContext(ctx, currentExecutor, mask, MASK_ONLY_INBOUND));
         return ctx;
     }
@@ -1148,6 +1158,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     private boolean invokeHandler() {
         // Store in local variable to reduce volatile reads.
         int handlerState = this.handlerState;
+        // 如果ctx的状态是addComplete 或者 ordered为false且状态是addPending
         return handlerState == ADD_COMPLETE || (!ordered && handlerState == ADD_PENDING);
     }
 

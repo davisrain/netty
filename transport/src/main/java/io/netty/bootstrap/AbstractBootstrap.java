@@ -273,12 +273,17 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        // 创建channel并且初始化channel，然后将channel注册到group中，实际是将channel注册到eventLoop中。
+        // 每个NioEventLoop持有了一个selector，将java的nioChannel注册到selector中
         final ChannelFuture regFuture = initAndRegister();
+        // 获取对应的channel对象
         final Channel channel = regFuture.channel();
+        // 如果 注册的future存在异常，直接返回
         if (regFuture.cause() != null) {
             return regFuture;
         }
 
+        // 如果 注册的future的value为SUCCESS
         if (regFuture.isDone()) {
             // At this point we know that the registration was complete and successful.
             ChannelPromise promise = channel.newPromise();

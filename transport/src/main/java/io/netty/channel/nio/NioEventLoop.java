@@ -513,21 +513,26 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             try {
                 int strategy;
                 try {
+                    // 使用 选择策略计算应该使用哪种策略
                     strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
                     switch (strategy) {
+                        // 如果是CONTINUE策略，直接继续循环
                     case SelectStrategy.CONTINUE:
                         continue;
 
                     case SelectStrategy.BUSY_WAIT:
                         // fall-through to SELECT since the busy-wait is not supported with NIO
 
+                        // 如果是SELECT策略
                     case SelectStrategy.SELECT:
+                        // 查看下一个计划执行任务的deadline
                         long curDeadlineNanos = nextScheduledTaskDeadlineNanos();
                         if (curDeadlineNanos == -1L) {
                             curDeadlineNanos = NONE; // nothing on the calendar
                         }
                         nextWakeupNanos.set(curDeadlineNanos);
                         try {
+                            // 如果不存在任务，那么调用selector的select方法监听io事件
                             if (!hasTasks()) {
                                 strategy = select(curDeadlineNanos);
                             }
@@ -548,30 +553,43 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                     continue;
                 }
 
+                // 将select次数+1
                 selectCnt++;
                 cancelledKeys = 0;
                 needsToSelectAgain = false;
+                // 获取自身的ioRatio
                 final int ioRatio = this.ioRatio;
                 boolean ranTasks;
+                // 如果ioRatio为100
                 if (ioRatio == 100) {
                     try {
+                        // 并且strategy大于0
                         if (strategy > 0) {
+                            // 处理被选择到的keys
                             processSelectedKeys();
                         }
                     } finally {
                         // Ensure we always run tasks.
+                        // 然后执行task
                         ranTasks = runAllTasks();
                     }
-                } else if (strategy > 0) {
+                }
+                // 如果strategy大于0
+                else if (strategy > 0) {
                     final long ioStartTime = System.nanoTime();
                     try {
                         processSelectedKeys();
                     } finally {
                         // Ensure we always run tasks.
+                        // 计算处理io的事件
                         final long ioTime = System.nanoTime() - ioStartTime;
+                        // 根据ioRatio和ioTime计算出应该处理task的时间，然后传入runAllTasks方法中
                         ranTasks = runAllTasks(ioTime * (100 - ioRatio) / ioRatio);
                     }
-                } else {
+                }
+                // 如果strategy不大于0，说明没有io事件
+                else {
+                    // 直接执行task
                     ranTasks = runAllTasks(0); // This will run the minimum number of tasks
                 }
 
@@ -855,6 +873,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     @Override
     protected void wakeup(boolean inEventLoop) {
+        // 如果当前线程不是eventLoop中的线程，并且下一次wakeup的时间不是AWAKE，那么调用selector的wakeup方法
         if (!inEventLoop && nextWakeupNanos.getAndSet(AWAKE) != AWAKE) {
             selector.wakeup();
         }

@@ -120,10 +120,14 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
 
     @Override
     public boolean setUncancellable() {
+        // 将result通过cas从null设置为UNCANCELLABLE
         if (RESULT_UPDATER.compareAndSet(this, null, UNCANCELLABLE)) {
+            // 如果成功 直接返回true
             return true;
         }
+        // 获取result对象
         Object result = this.result;
+        // 如果result不为null 且 不是UNCANCELLABLE 并且 不是CanceledException的时候，返回false
         return !isDone0(result) || !isCancelled0(result);
     }
 

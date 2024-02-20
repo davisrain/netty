@@ -114,7 +114,7 @@ public abstract class ChannelInitializer<C extends Channel> extends ChannelInbou
             if (initChannel(ctx)) {
 
                 // We are done with init the Channel, removing the initializer now.
-                // 将initializer状态只为removeComplete
+                // 将initializer状态设置为removeComplete
                 removeState(ctx);
             }
         }
