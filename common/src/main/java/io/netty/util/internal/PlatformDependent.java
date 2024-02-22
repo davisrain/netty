@@ -456,9 +456,11 @@ public final class PlatformDependent {
      * Raises an exception bypassing compiler checks for checked exceptions.
      */
     public static void throwException(Throwable t) {
+        // 如果存在unsafe类，使用unsafe的throwException
         if (hasUnsafe()) {
             PlatformDependent0.throwException(t);
         } else {
+            // 否则，直接抛出异常
             PlatformDependent.<RuntimeException>throwException0(t);
         }
     }

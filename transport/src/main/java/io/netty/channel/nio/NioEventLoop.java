@@ -615,8 +615,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             } finally {
                 // Always handle shutdown even if the loop processing threw an exception.
                 try {
+                    // 如果eventExecutor的状态已经 大于等于 shuttingdown了
                     if (isShuttingDown()) {
+                        // 调用closeAll进行关闭
                         closeAll();
+                        // 确认是否已经shutdown了
                         if (confirmShutdown()) {
                             return;
                         }
@@ -699,36 +702,50 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         // check if the set is empty and if so just return to not create garbage by
         // creating a new Iterator every time even if there is nothing to process.
         // See https://github.com/netty/netty/issues/597
+        // 如果selectedKeys为空，直接返回
         if (selectedKeys.isEmpty()) {
             return;
         }
 
+        // 否则，进行遍历
         Iterator<SelectionKey> i = selectedKeys.iterator();
         for (;;) {
+            // 获取一个SelectionKey 并且获取其 attachment
             final SelectionKey k = i.next();
             final Object a = k.attachment();
+            // 将其从集合中删除
             i.remove();
 
+            // 如果attachment是 抽象的nioChannel类型的，调用具体的处理逻辑
             if (a instanceof AbstractNioChannel) {
                 processSelectedKey(k, (AbstractNioChannel) a);
-            } else {
+            }
+            // 如果是NioTask类型的
+            else {
                 @SuppressWarnings("unchecked")
                 NioTask<SelectableChannel> task = (NioTask<SelectableChannel>) a;
+                // 调用重载方法执行具体的逻辑
                 processSelectedKey(k, task);
             }
 
+            // 如果迭代器中已经不存在下一个元素了，跳出循环
             if (!i.hasNext()) {
                 break;
             }
 
+            // 如果needsToSelectAgain为true的话
             if (needsToSelectAgain) {
+                // 再次调用selector的selectNow方法，再次select一次
                 selectAgain();
+                // 然后将selectedKeys再次赋值为selector的selectedKeys集合
                 selectedKeys = selector.selectedKeys();
 
                 // Create the iterator again to avoid ConcurrentModificationException
+                // 如果集合为空，跳出循环
                 if (selectedKeys.isEmpty()) {
                     break;
                 } else {
+                    // 否则，将新集合的迭代器赋值给i，继续循环
                     i = selectedKeys.iterator();
                 }
             }
@@ -764,7 +781,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     }
 
     private void processSelectedKey(SelectionKey k, AbstractNioChannel ch) {
+        // 获取channel的unsafe对象
         final AbstractNioChannel.NioUnsafe unsafe = ch.unsafe();
+        // 如果selectionKey是非法的
         if (!k.isValid()) {
             final EventLoop eventLoop;
             try {
@@ -779,6 +798,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             // and thus the SelectionKey could be cancelled as part of the deregistration process, but the channel is
             // still healthy and should not be closed.
             // See https://github.com/netty/netty/issues/5125
+            // 如果channel的eventLoop存在且等于自身，那么调用close方法进行关闭
             if (eventLoop == this) {
                 // close the channel if the key is not valid anymore
                 unsafe.close(unsafe.voidPromise());
@@ -787,31 +807,39 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
 
         try {
+            // 获取selectionKey准备好的io操作
             int readyOps = k.readyOps();
             // We first need to call finishConnect() before try to trigger a read(...) or write(...) as otherwise
             // the NIO JDK channel implementation may throw a NotYetConnectedException.
+            // 如果准备好的io操作包含有connect
             if ((readyOps & SelectionKey.OP_CONNECT) != 0) {
                 // remove OP_CONNECT as otherwise Selector.select(..) will always return without blocking
                 // See https://github.com/netty/netty/issues/924
+                // 将selectionKey中感兴趣的io操作中移除connect
                 int ops = k.interestOps();
                 ops &= ~SelectionKey.OP_CONNECT;
                 k.interestOps(ops);
 
+                // 然后调用unsafe的finishConnect方法
                 unsafe.finishConnect();
             }
 
             // Process OP_WRITE first as we may be able to write some queued buffers and so free memory.
+            // 如果readyOps包含有write
             if ((readyOps & SelectionKey.OP_WRITE) != 0) {
                 // Call forceFlush which will also take care of clear the OP_WRITE once there is nothing left to write
+                // 调用unsafe的forceFlush方法，这个方法也会将writeOp从selectionKey的interestOps中清除
                unsafe.forceFlush();
             }
 
             // Also check for readOps of 0 to workaround possible JDK bug which may otherwise lead
             // to a spin loop
+            // 如果readyOps里包含read或者accept 或者 readyOps等于0，调用unsafe的read方法
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
                 unsafe.read();
             }
         } catch (CancelledKeyException ignored) {
+            // 如果出现selectionKey取消的异常，调用unsafe的close方法
             unsafe.close(unsafe.voidPromise());
         }
     }
@@ -843,21 +871,31 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     }
 
     private void closeAll() {
+        // 再执行一次selector的selectNow方法
         selectAgain();
+        // 获取selector中的SelectionKey集合
         Set<SelectionKey> keys = selector.keys();
         Collection<AbstractNioChannel> channels = new ArrayList<AbstractNioChannel>(keys.size());
+        // 获取每个selectionKey的attachment
         for (SelectionKey k: keys) {
             Object a = k.attachment();
+            // 如果attachment是抽象的nioChannel类型，添加到集合中
             if (a instanceof AbstractNioChannel) {
                 channels.add((AbstractNioChannel) a);
-            } else {
+            }
+            // 如果不是
+            else {
+                // 调用selectionKey的cancel方法
                 k.cancel();
                 @SuppressWarnings("unchecked")
+                        // 将attachment强转为NioTask类型
                 NioTask<SelectableChannel> task = (NioTask<SelectableChannel>) a;
+                // 调用nioTask的channelUnregistered方法
                 invokeChannelUnregistered(task, k, null);
             }
         }
 
+        // 调用Channel的unsafe的close方法
         for (AbstractNioChannel ch: channels) {
             ch.unsafe().close(ch.unsafe().voidPromise());
         }

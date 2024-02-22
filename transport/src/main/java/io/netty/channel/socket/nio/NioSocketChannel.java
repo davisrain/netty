@@ -110,6 +110,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
      */
     public NioSocketChannel(Channel parent, SocketChannel socket) {
         super(parent, socket);
+        // 创建一个NioSocketChannelConfig对象持有
         config = new NioSocketChannelConfig(this, socket.socket());
     }
 
@@ -131,6 +132,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
     @Override
     public boolean isActive() {
         SocketChannel ch = javaChannel();
+        // 判断channel是否是open且是connected状态的
         return ch.isOpen() && ch.isConnected();
     }
 
@@ -141,6 +143,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
 
     @Override
     public boolean isInputShutdown() {
+        // 判断channel的socket的input是否已经关闭了 或者 channel不是active状态的
         return javaChannel().socket().isInputShutdown() || !isActive();
     }
 

@@ -38,6 +38,7 @@ final class StacklessClosedChannelException extends ClosedChannelException {
      * Creates a new {@link StacklessClosedChannelException} which has the origin of the given {@link Class} and method.
      */
     static StacklessClosedChannelException newInstance(Class<?> clazz, String method) {
+        // 该异常的栈桢只手动生成一条
         return ThrowableUtil.unknownStackTrace(new StacklessClosedChannelException(), clazz, method);
     }
 }

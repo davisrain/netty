@@ -243,22 +243,30 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
 
     @Override
     public Promise<V> await() throws InterruptedException {
+        // 如果自身promise已经完成了，直接返回自身
         if (isDone()) {
             return this;
         }
 
+        // 如果当前线程有中断标记，抛出InterruptedException
         if (Thread.interrupted()) {
             throw new InterruptedException(toString());
         }
 
+        // 检查死锁
         checkDeadLock();
 
+        // 加锁是为了wait操作
         synchronized (this) {
+            // 当自身没有完成的时候
             while (!isDone()) {
+                // 将waiters的计数+1
                 incWaiters();
                 try {
+                    // 调用wait函数进行等待
                     wait();
                 } finally {
+                    // 将waiters计数-1
                     decWaiters();
                 }
             }
@@ -408,7 +416,9 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
 
     @Override
     public Promise<V> sync() throws InterruptedException {
+        // 调用await方法将执行sync方法的线程挂起，直到promise结束
         await();
+        // 如果promise中有异常，将其重新抛出；如果没有，直接返回
         rethrowIfFailed();
         return this;
     }
@@ -465,6 +475,8 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
 
     protected void checkDeadLock() {
         EventExecutor e = executor();
+        // 如果发现当前线程就是promise持有的executor，即执行promise逻辑的线程，那么抛出异常。
+        // 因为相当于在当前线程中等待promise的结束，必定会出现死锁
         if (e != null && e.inEventLoop()) {
             throw new BlockingOperationException(toString());
         }
@@ -488,7 +500,9 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     private void notifyListeners() {
+        // 获取executor
         EventExecutor executor = executor();
+        // 如果当前线程是eventLoop持有的线程
         if (executor.inEventLoop()) {
             final InternalThreadLocalMap threadLocals = InternalThreadLocalMap.get();
             final int stackDepth = threadLocals.futureListenerStackDepth();
@@ -646,7 +660,9 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     private boolean setValue0(Object objResult) {
         if (RESULT_UPDATER.compareAndSet(this, null, objResult) ||
             RESULT_UPDATER.compareAndSet(this, UNCANCELLABLE, objResult)) {
+            // 如果存在等到的waiter 或者 listener，返回true
             if (checkNotifyWaiters()) {
+                // 通知listener
                 notifyListeners();
             }
             return true;
@@ -659,13 +675,16 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
      * @return {@code true} if there are any listeners attached to the promise, {@code false} otherwise.
      */
     private synchronized boolean checkNotifyWaiters() {
+        // 当waiters大于0时，唤醒那些等待的线程
         if (waiters > 0) {
             notifyAll();
         }
+        // 并且判断是否有注册有监听器
         return listener != null || listeners != null;
     }
 
     private void incWaiters() {
+        // 如果waiters超出了short的最大值，报错
         if (waiters == Short.MAX_VALUE) {
             throw new IllegalStateException("too many waiters: " + this);
         }
@@ -678,9 +697,11 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
 
     private void rethrowIfFailed() {
         Throwable cause = cause();
+        // 如果不存在异常，直接返回
         if (cause == null) {
             return;
         }
+
 
         PlatformDependent.throwException(cause);
     }

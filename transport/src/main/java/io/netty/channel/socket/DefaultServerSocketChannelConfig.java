@@ -48,6 +48,7 @@ public class DefaultServerSocketChannelConfig extends DefaultChannelConfig
      * Creates a new instance.
      */
     public DefaultServerSocketChannelConfig(ServerSocketChannel channel, ServerSocket javaSocket) {
+        // 创建一个一个ServerChannelRecvByteBufAllocator传入父类的构造器
         super(channel, new ServerChannelRecvByteBufAllocator());
         this.javaSocket = ObjectUtil.checkNotNull(javaSocket, "javaSocket");
     }

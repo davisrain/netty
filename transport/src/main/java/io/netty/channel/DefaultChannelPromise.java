@@ -55,7 +55,9 @@ public class DefaultChannelPromise extends DefaultPromise<Void> implements Chann
 
     @Override
     protected EventExecutor executor() {
+        // 获取父类的executor
         EventExecutor e = super.executor();
+        // 如果为null的话，获取channel持有的eventLoop
         if (e == null) {
             return channel().eventLoop();
         } else {
@@ -155,6 +157,7 @@ public class DefaultChannelPromise extends DefaultPromise<Void> implements Chann
 
     @Override
     protected void checkDeadLock() {
+        // 如果自身持有的channel是被注册了的
         if (channel().isRegistered()) {
             super.checkDeadLock();
         }

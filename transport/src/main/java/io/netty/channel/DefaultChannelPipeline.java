@@ -1002,6 +1002,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelFuture bind(SocketAddress localAddress, ChannelPromise promise) {
+        // 调用tailContext的bind方法
         return tail.bind(localAddress, promise);
     }
 
@@ -1033,6 +1034,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelPipeline read() {
+        // 调用tail的read方法
         tail.read();
         return this;
     }
@@ -1375,6 +1377,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void bind(
                 ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) {
+            // 调用unsafe的bind方法
             unsafe.bind(localAddress, promise);
         }
 
@@ -1403,6 +1406,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void read(ChannelHandlerContext ctx) {
+            // 调用unsafe的beginRead方法
             unsafe.beginRead();
         }
 
@@ -1442,6 +1446,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         public void channelActive(ChannelHandlerContext ctx) {
             ctx.fireChannelActive();
 
+            // 如果channel的autoRead属性为true，那么调用其read方法
             readIfIsAutoRead();
         }
 

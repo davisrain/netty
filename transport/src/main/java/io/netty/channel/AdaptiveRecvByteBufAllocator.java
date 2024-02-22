@@ -46,15 +46,18 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
 
     static {
         List<Integer> sizeTable = new ArrayList<Integer>();
+        // 每16往sizeTable里面添加元素，直到i大于等于512
         for (int i = 16; i < 512; i += 16) {
             sizeTable.add(i);
         }
 
         // Suppress a warning since i becomes negative when an integer overflow happens
+        // 当i大于等于512时，每次都将i左移1位，即乘以2，当i溢出时，跳出循环
         for (int i = 512; i > 0; i <<= 1) { // lgtm[java/constant-comparison]
             sizeTable.add(i);
         }
 
+        // 然后将sizeTable集合转换为数组
         SIZE_TABLE = new int[sizeTable.size()];
         for (int i = 0; i < SIZE_TABLE.length; i ++) {
             SIZE_TABLE[i] = sizeTable.get(i);
@@ -68,6 +71,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
     public static final AdaptiveRecvByteBufAllocator DEFAULT = new AdaptiveRecvByteBufAllocator();
 
     private static int getSizeTableIndex(final int size) {
+        // 使用二分查找，找到size在sizeTable中的index
         for (int low = 0, high = SIZE_TABLE.length - 1;;) {
             if (high < low) {
                 return low;
@@ -102,7 +106,9 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             this.minIndex = minIndex;
             this.maxIndex = maxIndex;
 
+            // 获取初始化size在sizeTable里面的index
             index = getSizeTableIndex(initial);
+            // 将nextReceiveBufferSize设置为index对应的sizeTable中的size
             nextReceiveBufferSize = SIZE_TABLE[index];
         }
 
@@ -120,6 +126,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
 
         @Override
         public int guess() {
+            // 返回nextReceiveBufferSize，默认是2048
             return nextReceiveBufferSize;
         }
 
@@ -155,6 +162,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
      * go down below {@code 64}, and does not go up above {@code 65536}.
      */
     public AdaptiveRecvByteBufAllocator() {
+        // 默认最小64 初始化2048 最大65536
         this(DEFAULT_MINIMUM, DEFAULT_INITIAL, DEFAULT_MAXIMUM);
     }
 
@@ -174,26 +182,32 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             throw new IllegalArgumentException("maximum: " + maximum);
         }
 
+        // 获取最小值在sizeTable里面的index
         int minIndex = getSizeTableIndex(minimum);
+        // 如果minIndex对应的size小于最小值，那么将minIndex+1
         if (SIZE_TABLE[minIndex] < minimum) {
             this.minIndex = minIndex + 1;
         } else {
             this.minIndex = minIndex;
         }
 
+        // 获取最大值在sizeTable里面的index
         int maxIndex = getSizeTableIndex(maximum);
+        // 如果maxIndex对应的size 大于最大值，那么将maxIndex-1
         if (SIZE_TABLE[maxIndex] > maximum) {
             this.maxIndex = maxIndex - 1;
         } else {
             this.maxIndex = maxIndex;
         }
 
+        // 将initial赋值给自身属性
         this.initial = initial;
     }
 
     @SuppressWarnings("deprecation")
     @Override
     public Handle newHandle() {
+        // 创建一个HandleImpl返回，将minIndex，maxIndex，initial传入
         return new HandleImpl(minIndex, maxIndex, initial);
     }
 

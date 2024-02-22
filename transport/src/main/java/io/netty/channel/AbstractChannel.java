@@ -261,6 +261,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     @Override
     public ChannelFuture bind(SocketAddress localAddress, ChannelPromise promise) {
+        // 调用pipeline的bind方法
         return pipeline.bind(localAddress, promise);
     }
 
@@ -291,6 +292,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     @Override
     public Channel read() {
+        // 调用pipeline的read方法
         pipeline.read();
         return this;
     }
@@ -444,6 +446,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         @Override
         public RecvByteBufAllocator.Handle recvBufAllocHandle() {
+            // 如果recvHandle为null，使用config的recvByteBufAllocator获取一个新的handle持有
             if (recvHandle == null) {
                 recvHandle = config().getRecvByteBufAllocator().newHandle();
             }
@@ -569,6 +572,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         public final void bind(final SocketAddress localAddress, final ChannelPromise promise) {
             assertEventLoop();
 
+            // 如果向promise中设置不可取消 失败  或者 channel不是open的，直接返回
             if (!promise.setUncancellable() || !ensureOpen(promise)) {
                 return;
             }
@@ -586,16 +590,21 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         "address (" + localAddress + ") anyway as requested.");
             }
 
+            // 判断channel是否是active状态的，即java的nioChannel是否open以及java的socket是否已经绑定
             boolean wasActive = isActive();
             try {
+                // 调用doBind方法进行绑定
                 doBind(localAddress);
             } catch (Throwable t) {
+                // 如果出现异常，将异常设置到promise中
                 safeSetFailure(promise, t);
                 closeIfClosed();
                 return;
             }
 
+            // 如果channel的状态从 unactive 转换到了 active
             if (!wasActive && isActive()) {
+                // 那么调用pipeline的fireChannelActive方法
                 invokeLater(new Runnable() {
                     @Override
                     public void run() {
@@ -604,6 +613,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 });
             }
 
+            // 向promise设置success
             safeSetSuccess(promise);
         }
 
@@ -645,6 +655,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             assertEventLoop();
 
             ClosedChannelException closedChannelException =
+                    // 创建一个StacklessCloseChannelException示例
                     StacklessClosedChannelException.newInstance(AbstractChannel.class, "close(ChannelPromise)");
             close(promise, closedChannelException, closedChannelException, false);
         }
@@ -860,6 +871,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             assertEventLoop();
 
             try {
+                // 调用doBeginRead执行具体的read逻辑
                 doBeginRead();
             } catch (final Exception e) {
                 invokeLater(new Runnable() {

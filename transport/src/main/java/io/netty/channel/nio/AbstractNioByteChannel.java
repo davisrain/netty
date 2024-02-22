@@ -63,6 +63,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
      * @param ch                the underlying {@link SelectableChannel} on which it operates
      */
     protected AbstractNioByteChannel(Channel parent, SelectableChannel ch) {
+        // 传入readOp作为readInterestOp
         super(parent, ch, SelectionKey.OP_READ);
     }
 
@@ -85,7 +86,9 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         return METADATA;
     }
 
+    // 判断是否需要打破readReady
     final boolean shouldBreakReadReady(ChannelConfig config) {
+        // 如果channel的input已经关闭了 并且 (inputClosedSeenErrorOnRead为true 或者 config是不允许半关闭的)，返回true
         return isInputShutdown0() && (inputClosedSeenErrorOnRead || !isAllowHalfClosure(config));
     }
 
@@ -133,20 +136,27 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
 
         @Override
         public final void read() {
+            // 获取到channel持有的config
             final ChannelConfig config = config();
+            // 如果判断是需要打破readReady，清除readPending后直接返回
             if (shouldBreakReadReady(config)) {
                 clearReadPending();
                 return;
             }
+            // 获取channel的pipeline
             final ChannelPipeline pipeline = pipeline();
+            // 获取config中的ByteBufAllocator，注意：和RecvByteBufAllocator不是一个东西
             final ByteBufAllocator allocator = config.getAllocator();
+            // 根据config中的RecvByteBufAllocator获取对应的handle，这里获取到的默认是AdaptiveRecvByteBufAllocator.HandleImpl
             final RecvByteBufAllocator.Handle allocHandle = recvBufAllocHandle();
+            // 将config重新设置进allocHandle
             allocHandle.reset(config);
 
             ByteBuf byteBuf = null;
             boolean close = false;
             try {
                 do {
+                    // 使用allocHandle的allocate方法，以allocator为参数，分配出一个ByteBuf
                     byteBuf = allocHandle.allocate(allocator);
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
                     if (allocHandle.lastBytesRead() <= 0) {

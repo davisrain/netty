@@ -286,12 +286,19 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         // 如果 注册的future的value为SUCCESS
         if (regFuture.isDone()) {
             // At this point we know that the registration was complete and successful.
+            // 根据channel创建一个新的ChannelPromise
             ChannelPromise promise = channel.newPromise();
+            // 调用doBind0方法执行具体的绑定逻辑
             doBind0(regFuture, channel, localAddress, promise);
             return promise;
-        } else {
+        }
+        // 注册的future的value为null或UNCANCELLABLE的情况
+        else {
             // Registration future is almost always fulfilled already, but just in case it's not.
+            // 创建一个延迟注册promise
             final PendingRegistrationPromise promise = new PendingRegistrationPromise(channel);
+            // 向注册的future里面添加一个监听器，当出现异常的时候将异常存入到新创建的promise中
+            // 当成功的时候，设置延迟注册promise的registered为true，然后执行doBind0，进行绑定
             regFuture.addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
@@ -367,12 +374,16 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
         // This method is invoked before channelRegistered() is triggered.  Give user handlers a chance to set up
         // the pipeline in its channelRegistered() implementation.
+        // 使用channel的eventLoop来执行以下逻辑，会添加到任务队列中
         channel.eventLoop().execute(new Runnable() {
             @Override
             public void run() {
+                // 如果注册future的value为SUCCESS
                 if (regFuture.isSuccess()) {
+                    // 调用channel的bind方法，并且添加一个listener到future中，listener的逻辑是如果future是失败了，那么将channel关闭
                     channel.bind(localAddress, promise).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
                 } else {
+                    // 如果注册future不是成功的，那么直接将注册future的异常设置到 bindPromise中
                     promise.setFailure(regFuture.cause());
                 }
             }

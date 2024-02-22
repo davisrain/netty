@@ -163,9 +163,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
      * Set read pending to {@code false}.
      */
     protected final void clearReadPending() {
+        // 如果channel已经注册了
         if (isRegistered()) {
+            // 判断当前线程是否是eventExecutor持有的线程
             EventLoop eventLoop = eventLoop();
             if (eventLoop.inEventLoop()) {
+                // 如果是，调用clearReadPending0方法
                 clearReadPending0();
             } else {
                 eventLoop.execute(clearReadPendingRunnable);
@@ -186,7 +189,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     }
 
     private void clearReadPending0() {
+        // 将readPending设置为false
         readPending = false;
+        // 并且将selectionKey中对应的readOp清除掉，不再监听
         ((AbstractNioUnsafe) unsafe()).removeReadOp();
     }
 
@@ -415,8 +420,11 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
         readPending = true;
 
+        // 获取监听的操作
         final int interestOps = selectionKey.interestOps();
+        // 如果监听的操作里面不包含自身的readInterestOp
         if ((interestOps & readInterestOp) == 0) {
+            // 向selectionKey中添加readInterestOp
             selectionKey.interestOps(interestOps | readInterestOp);
         }
     }

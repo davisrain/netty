@@ -72,6 +72,7 @@ public class DefaultChannelConfig implements ChannelConfig {
     private volatile boolean pinEventExecutor = true;
 
     public DefaultChannelConfig(Channel channel) {
+        // 创建一个AdaptiveRecvByteBufAllocator实例传入重载的构造方法
         this(channel, new AdaptiveRecvByteBufAllocator());
     }
 
@@ -323,6 +324,7 @@ public class DefaultChannelConfig implements ChannelConfig {
     private void setRecvByteBufAllocator(RecvByteBufAllocator allocator, ChannelMetadata metadata) {
         checkNotNull(allocator, "allocator");
         checkNotNull(metadata, "metadata");
+        // 如果allocator类型是MaxMessageRecvByteBufAllocator类型的，设置每次读取的最大消息
         if (allocator instanceof MaxMessagesRecvByteBufAllocator) {
             ((MaxMessagesRecvByteBufAllocator) allocator).maxMessagesPerRead(metadata.defaultMaxMessagesPerRead());
         }

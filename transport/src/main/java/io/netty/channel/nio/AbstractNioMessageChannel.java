@@ -65,10 +65,17 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
 
         @Override
         public void read() {
+            // 判断当前线程是否是EventExecutor里持有的线程
             assert eventLoop().inEventLoop();
+            // 获取channel的config
             final ChannelConfig config = config();
+            // 获取channel的channelPipeline
             final ChannelPipeline pipeline = pipeline();
+            // 获取config中的RecvByteBufAllocator的newHandle方法创建的handle。
+            // NioServerSocketChannel默认的是ServerChannelRecvByteBufAllocator，默认的每次读取最大消息为16；
+            // 它的newHandle方法返回的是MaxMessageHandle类型
             final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
+            // 调用allocHandle的reset方法，将config设置进去，并且设置handle的maxMessagesPerRead，并且将handle已经读取的messages和bytes设置为0
             allocHandle.reset(config);
 
             boolean closed = false;
@@ -76,38 +83,55 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
             try {
                 try {
                     do {
+                        // 执行具体的读取消息逻辑，将结果添加进readBuf中
                         int localRead = doReadMessages(readBuf);
+                        // 如果localRead返回0，表示没有读取到内容，跳出循环
                         if (localRead == 0) {
                             break;
                         }
+                        // 如果localRead 小于0，将closed设置为true，并且跳出循环
                         if (localRead < 0) {
                             closed = true;
                             break;
                         }
 
+                        // 增加allocHandle里面已读消息的数量
                         allocHandle.incMessagesRead(localRead);
+                        // 通过allocHandle判断是否还要继续读取
                     } while (continueReading(allocHandle));
                 } catch (Throwable t) {
+                    // 如果出现异常，收集起来
                     exception = t;
                 }
 
+                // 获取readBuf的size
                 int size = readBuf.size();
-                for (int i = 0; i < size; i ++) {
+                // 遍历readBuf
+                for (int i = 0; i < size; i++) {
+                    // 将readPending设置为false
                     readPending = false;
+                    // 调用pipeline的fireChannelRead方法
                     pipeline.fireChannelRead(readBuf.get(i));
                 }
+                // 然后将readBuf清空
                 readBuf.clear();
+                // 调用allocHandle的readComplete方法，表示读取完毕
                 allocHandle.readComplete();
+                // 然后调用pipeline的读取完毕的方法
                 pipeline.fireChannelReadComplete();
 
+                // 如果读取过程中出现了异常
                 if (exception != null) {
                     closed = closeOnReadError(exception);
 
                     pipeline.fireExceptionCaught(exception);
                 }
 
+                // 如果closed状态为true
                 if (closed) {
+                    // 将inputShutdown设置为true
                     inputShutdown = true;
+                    // 如果channel状态是open的，调用close
                     if (isOpen()) {
                         close(voidPromise());
                     }

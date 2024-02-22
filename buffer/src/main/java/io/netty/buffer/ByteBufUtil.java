@@ -74,27 +74,36 @@ public final class ByteBufUtil {
     static final ByteBufAllocator DEFAULT_ALLOCATOR;
 
     static {
+        // 获取allocator的类型，系统参数io.netty.allocator.type，如果不存在，根据平台判断使用unpooled或者pooled
         String allocType = SystemPropertyUtil.get(
                 "io.netty.allocator.type", PlatformDependent.isAndroid() ? "unpooled" : "pooled");
         allocType = allocType.toLowerCase(Locale.US).trim();
 
         ByteBufAllocator alloc;
+        // 如果是unpooled类型的，那么allocator使用默认的UnpooledByteBufAllocator
         if ("unpooled".equals(allocType)) {
             alloc = UnpooledByteBufAllocator.DEFAULT;
             logger.debug("-Dio.netty.allocator.type: {}", allocType);
-        } else if ("pooled".equals(allocType)) {
+        }
+        // 如果是pooled类型的，使用默认的PooledByteBufAllocator
+        else if ("pooled".equals(allocType)) {
             alloc = PooledByteBufAllocator.DEFAULT;
             logger.debug("-Dio.netty.allocator.type: {}", allocType);
-        } else {
+        }
+        // 其他情况下使用默认的PooledByteBufAllocator
+        else {
             alloc = PooledByteBufAllocator.DEFAULT;
             logger.debug("-Dio.netty.allocator.type: pooled (unknown: {})", allocType);
         }
 
+        // 将上一步获取到的allocator赋值给静态变量DEFAULT_ALLOCATOR
         DEFAULT_ALLOCATOR = alloc;
 
+        // 获取THREAD_LOCAL_BUFFER_SIZE的值，默认为0
         THREAD_LOCAL_BUFFER_SIZE = SystemPropertyUtil.getInt("io.netty.threadLocalDirectBufferSize", 0);
         logger.debug("-Dio.netty.threadLocalDirectBufferSize: {}", THREAD_LOCAL_BUFFER_SIZE);
 
+        // 获取MAX_CHAR_BUFFER_SIZE的值，默认16*1024
         MAX_CHAR_BUFFER_SIZE = SystemPropertyUtil.getInt("io.netty.maxThreadLocalCharBufferSize", 16 * 1024);
         logger.debug("-Dio.netty.maxThreadLocalCharBufferSize: {}", MAX_CHAR_BUFFER_SIZE);
     }

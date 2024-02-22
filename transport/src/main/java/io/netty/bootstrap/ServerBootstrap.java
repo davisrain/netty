@@ -215,18 +215,24 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
         @Override
         @SuppressWarnings("unchecked")
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            // 将msg强转为Channel类型
             final Channel child = (Channel) msg;
 
+            // 向channel的pipeline中添加childHandler
             child.pipeline().addLast(childHandler);
 
+            // 向channel中设置childOptions和childAttrs
             setChannelOptions(child, childOptions, logger);
             setAttributes(child, childAttrs);
 
             try {
+                // 向childGroup中注册channel，并且向promise中添加listener
                 childGroup.register(child).addListener(new ChannelFutureListener() {
                     @Override
                     public void operationComplete(ChannelFuture future) throws Exception {
+                        // 当注册的future/promise不成功的时候
                         if (!future.isSuccess()) {
+                            // 调用forceClose，强制关闭掉child这个Channel
                             forceClose(child, future.cause());
                         }
                     }

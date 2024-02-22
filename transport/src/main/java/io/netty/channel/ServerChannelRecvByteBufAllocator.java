@@ -20,11 +20,13 @@ package io.netty.channel;
  */
 public final class ServerChannelRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufAllocator {
     public ServerChannelRecvByteBufAllocator() {
+        // 调用父类的构造方法，传入每次读取的最大消息为1，ignoreBytesRead为true
         super(1, true);
     }
 
     @Override
     public Handle newHandle() {
+        // 创建一个MaxMessageHandle的匿名子类返回，重写guess方法返回128
         return new MaxMessageHandle() {
             @Override
             public int guess() {

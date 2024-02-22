@@ -240,6 +240,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelHandlerContext fireChannelActive() {
+        // 查找到需要执行channelActive的handlerCtx，然后调用channelActive方法
         invokeChannelActive(findContextInbound(MASK_CHANNEL_ACTIVE));
         return this;
     }
@@ -580,16 +581,20 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     @Override
     public ChannelFuture bind(final SocketAddress localAddress, final ChannelPromise promise) {
         ObjectUtil.checkNotNull(localAddress, "localAddress");
+        // 检查promise是否合法
         if (isNotValidPromise(promise, false)) {
             // cancelled
             return promise;
         }
 
+        // 找到需要执行bind方法的handlerCtx
         final AbstractChannelHandlerContext next = findContextOutbound(MASK_BIND);
         EventExecutor executor = next.executor();
+        // 如果找到的handlerCtx的executor中持有的线程就是当前线程，直接调用其invokeBind方法
         if (executor.inEventLoop()) {
             next.invokeBind(localAddress, promise);
         } else {
+            // 否则，使用其executor执行它的invokeBind方法
             safeExecute(executor, new Runnable() {
                 @Override
                 public void run() {
@@ -820,15 +825,21 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelHandlerContext read() {
+        // 查找需要执行read方法的handlerCtx
         final AbstractChannelHandlerContext next = findContextOutbound(MASK_READ);
         EventExecutor executor = next.executor();
+        // 如果handlerCtx中的线程等于当前线程，调用invokeRead方法
         if (executor.inEventLoop()) {
             next.invokeRead();
-        } else {
+        }
+        // 否则获取ctx的invokeTasks属性
+        else {
             Tasks tasks = next.invokeTasks;
+            // 如果为null，创建一个
             if (tasks == null) {
                 next.invokeTasks = tasks = new Tasks(next);
             }
+            // 调用ctx的executor执行tasks中的invokeReadTask
             executor.execute(tasks.invokeReadTask);
         }
 
@@ -1076,6 +1087,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         AbstractChannelHandlerContext ctx = this;
         EventExecutor currentExecutor = executor();
         do {
+            // 从后往前找
             ctx = ctx.prev;
         } while (skipContext(ctx, currentExecutor, mask, MASK_ONLY_OUTBOUND));
         return ctx;

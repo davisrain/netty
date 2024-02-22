@@ -48,6 +48,7 @@ import java.util.Map;
 public class NioServerSocketChannel extends AbstractNioMessageChannel
                              implements io.netty.channel.socket.ServerSocketChannel {
 
+    // 创建一个ChannelMetadata独享，其中默认每次读取最大消息为16
     private static final ChannelMetadata METADATA = new ChannelMetadata(false, 16);
     private static final SelectorProvider DEFAULT_SELECTOR_PROVIDER = SelectorProvider.provider();
 
@@ -145,6 +146,7 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
     @Override
     protected void doBind(SocketAddress localAddress) throws Exception {
         if (PlatformDependent.javaVersion() >= 7) {
+            // 调用java nio Channel的bind方法，将channel持有的文件描述符和tcp连接绑定起来
             javaChannel().bind(localAddress, config.getBacklog());
         } else {
             javaChannel().socket().bind(localAddress, config.getBacklog());
@@ -158,17 +160,22 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
 
     @Override
     protected int doReadMessages(List<Object> buf) throws Exception {
+        // 调用serverSocketChannel的accept方法，获取SocketChannel
         SocketChannel ch = SocketUtils.accept(javaChannel());
 
         try {
+            // 如果获取到SocketChannel不为null
             if (ch != null) {
+                // 将其包装为netty的NioSocketChannel，并添加到buf集合中
                 buf.add(new NioSocketChannel(this, ch));
+                // 返回1，表示读取了一个message
                 return 1;
             }
         } catch (Throwable t) {
             logger.warn("Failed to create a new channel from an accepted socket.", t);
 
             try {
+                // 如果出现异常，调用channel的close方法
                 ch.close();
             } catch (Throwable t2) {
                 logger.warn("Failed to close a socket.", t2);

@@ -76,7 +76,9 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
             defaultPageSize = 8192;
             defaultAlignment = 0;
         }
+        // 默认的pageSize为8192
         DEFAULT_PAGE_SIZE = defaultPageSize;
+        // 默认的缓存对齐为0
         DEFAULT_DIRECT_MEMORY_CACHE_ALIGNMENT = defaultAlignment;
 
         int defaultMaxOrder = SystemPropertyUtil.getInt("io.netty.allocator.maxOrder", 9);
@@ -87,10 +89,12 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
             maxOrderFallbackCause = t;
             defaultMaxOrder = 9;
         }
+        // 默认的maxOrder为9
         DEFAULT_MAX_ORDER = defaultMaxOrder;
 
         // Determine reasonable default for nHeapArena and nDirectArena.
         // Assuming each arena has 3 chunks, the pool should not consume more than 50% of max memory.
+        // 假设每个arena包含3个chunks
         final Runtime runtime = Runtime.getRuntime();
 
         /*
@@ -100,19 +104,26 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
          *
          * See https://github.com/netty/netty/issues/3888.
          */
+        // 默认最小的arena个数为处理器的数量*2，因为默认的eventLoop个数是处理器数量*2，如果arena个数小于这个数，可能会产生race condition，
+        // 那么就会进入到hotspot虚拟机去使用synchronize来控制同步了，所以尽量应该让arena的个数大于等于eventLoop的个数
         final int defaultMinNumArena = NettyRuntime.availableProcessors() * 2;
+        // 获取默认的块大小 8192 << 9 = 4mb
         final int defaultChunkSize = DEFAULT_PAGE_SIZE << DEFAULT_MAX_ORDER;
+        // 获取堆内存的arena个数
         DEFAULT_NUM_HEAP_ARENA = Math.max(0,
                 SystemPropertyUtil.getInt(
                         "io.netty.allocator.numHeapArenas",
+                        // 默认取
                         (int) Math.min(
                                 defaultMinNumArena,
+                                // 假设每个arena包含3个chunks，那么需要保证所有内存所占大小不到堆内存的百分之50
                                 runtime.maxMemory() / defaultChunkSize / 2 / 3)));
         DEFAULT_NUM_DIRECT_ARENA = Math.max(0,
                 SystemPropertyUtil.getInt(
                         "io.netty.allocator.numDirectArenas",
                         (int) Math.min(
                                 defaultMinNumArena,
+                                // 假设每个arena包含3个chunks，那么需要保证所有内存所占大小不到最大直接内存的百分之50
                                 PlatformDependent.maxDirectMemory() / defaultChunkSize / 2 / 3)));
 
         // cache sizes
@@ -179,6 +190,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
     }
 
     public static final PooledByteBufAllocator DEFAULT =
+            // 创建一个PooledByteBufAllocator实例，其中参数为是否 更倾向于使用直接内存而非堆内存
             new PooledByteBufAllocator(PlatformDependent.directBufferPreferred());
 
     private final PoolArena<byte[]>[] heapArenas;
@@ -197,6 +209,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
 
     @SuppressWarnings("deprecation")
     public PooledByteBufAllocator(boolean preferDirect) {
+        // 传入默认的堆内存arena的个数、默认的直接内存arena的个数、默认的每页大小，默认的order
         this(preferDirect, DEFAULT_NUM_HEAP_ARENA, DEFAULT_NUM_DIRECT_ARENA, DEFAULT_PAGE_SIZE, DEFAULT_MAX_ORDER);
     }
 
