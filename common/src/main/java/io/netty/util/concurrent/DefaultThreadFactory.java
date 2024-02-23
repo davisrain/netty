@@ -104,8 +104,10 @@ public class DefaultThreadFactory implements ThreadFactory {
 
     @Override
     public Thread newThread(Runnable r) {
+        // 使用FastThreadLocalRunnable将runnable进行包装
         Thread t = newThread(FastThreadLocalRunnable.wrap(r), prefix + nextId.incrementAndGet());
         try {
+            // 设置线程的daemon 和 priority
             if (t.isDaemon() != daemon) {
                 t.setDaemon(daemon);
             }

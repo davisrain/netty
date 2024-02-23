@@ -29,6 +29,7 @@ final class FastThreadLocalRunnable implements Runnable {
         try {
             runnable.run();
         } finally {
+            // 在finally的时候调用FastThreadLocal的removeAll方法
             FastThreadLocal.removeAll();
         }
     }

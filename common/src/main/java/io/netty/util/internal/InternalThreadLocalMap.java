@@ -103,32 +103,46 @@ public final class InternalThreadLocalMap extends UnpaddedInternalThreadLocalMap
 
     public static InternalThreadLocalMap getIfSet() {
         Thread thread = Thread.currentThread();
+        // 如果当前线程是FastThreadLocalThread类型的，获取其threadLocalMap
         if (thread instanceof FastThreadLocalThread) {
             return ((FastThreadLocalThread) thread).threadLocalMap();
         }
+        // 否则从slowThreadLocalMap中获取
         return slowThreadLocalMap.get();
     }
 
     public static InternalThreadLocalMap get() {
+        // 获取当前线程
         Thread thread = Thread.currentThread();
+        // 如果当前线程是FastThreadLocalThread类型的
         if (thread instanceof FastThreadLocalThread) {
+            // 调用fastGet方法
             return fastGet((FastThreadLocalThread) thread);
-        } else {
+        }
+        // 如果是其他类型的线程
+        else {
+            // 调用slowGet方法
             return slowGet();
         }
     }
 
     private static InternalThreadLocalMap fastGet(FastThreadLocalThread thread) {
+        // 获取线程中的threadLocalMap对象
         InternalThreadLocalMap threadLocalMap = thread.threadLocalMap();
+        // 如果为null
         if (threadLocalMap == null) {
+            // new一个设置进去
             thread.setThreadLocalMap(threadLocalMap = new InternalThreadLocalMap());
         }
         return threadLocalMap;
     }
 
     private static InternalThreadLocalMap slowGet() {
+        // 通过slowThreadLocalMap这个原生的ThreadLocal从当前线程原生的ThreadLocalMap中获取InternalThreadLocalMap对象
         InternalThreadLocalMap ret = slowThreadLocalMap.get();
+        // 如果为null
         if (ret == null) {
+            // new一个，然后set进去
             ret = new InternalThreadLocalMap();
             slowThreadLocalMap.set(ret);
         }
@@ -166,7 +180,9 @@ public final class InternalThreadLocalMap extends UnpaddedInternalThreadLocalMap
     }
 
     private static Object[] newIndexedVariableTable() {
+        // 创建一个Object的数组，默认长度为32
         Object[] array = new Object[INDEXED_VARIABLE_TABLE_INITIAL_SIZE];
+        // 将其全部设置为UNSET对象
         Arrays.fill(array, UNSET);
         return array;
     }
@@ -331,12 +347,20 @@ public final class InternalThreadLocalMap extends UnpaddedInternalThreadLocalMap
      * @return {@code true} if and only if a new thread-local variable has been created
      */
     public boolean setIndexedVariable(int index, Object value) {
+        // 获取其indexedVariables数组
         Object[] lookup = indexedVariables;
+        // 如果index小于数组的长度
         if (index < lookup.length) {
+            // 获取数组中index原本的值
             Object oldValue = lookup[index];
+            // 然后将value存入数组中对应位置
             lookup[index] = value;
+            // 然后判断原始值是否是UNSET，如果是，返回true
             return oldValue == UNSET;
-        } else {
+        }
+        // 如果index大于了数组的长度
+        else {
+            // 那么需要将数组扩容然后设置value
             expandIndexedVariableTableAndSet(index, value);
             return true;
         }
@@ -346,7 +370,9 @@ public final class InternalThreadLocalMap extends UnpaddedInternalThreadLocalMap
         Object[] oldArray = indexedVariables;
         final int oldCapacity = oldArray.length;
         int newCapacity;
+        // 如果index小于 arrayList扩容阈值
         if (index < ARRAY_LIST_CAPACITY_EXPAND_THRESHOLD) {
+            // 获取大于index的最近的一个2的幂次方，比如index为6，那么newCapacity为8
             newCapacity = index;
             newCapacity |= newCapacity >>>  1;
             newCapacity |= newCapacity >>>  2;
@@ -354,13 +380,20 @@ public final class InternalThreadLocalMap extends UnpaddedInternalThreadLocalMap
             newCapacity |= newCapacity >>>  8;
             newCapacity |= newCapacity >>> 16;
             newCapacity ++;
-        } else {
+        }
+        // 如果大于等于 arrayList扩容阈值
+        else {
+            // 新的容量就等于arrayList的最大容量
             newCapacity = ARRAY_LIST_CAPACITY_MAX_SIZE;
         }
 
+        // 复制出一个新的数组
         Object[] newArray = Arrays.copyOf(oldArray, newCapacity);
+        // 将新产生的容量都设置为UNSET
         Arrays.fill(newArray, oldCapacity, newArray.length, UNSET);
+        // 然后将index位置设置为value
         newArray[index] = value;
+        // 将新数组赋值给indexedVariables
         indexedVariables = newArray;
     }
 

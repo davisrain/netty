@@ -63,6 +63,7 @@ public class FastThreadLocalThread extends Thread {
 
     public FastThreadLocalThread(ThreadGroup group, Runnable target, String name) {
         super(group, FastThreadLocalRunnable.wrap(target), name);
+        // 设置cleanupFastThreadLocals为true
         cleanupFastThreadLocals = true;
     }
 
