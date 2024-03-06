@@ -305,15 +305,18 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             boolean active = isActive();
 
             // trySuccess() will return false if a user cancelled the connection attempt.
+            // 尝试将promise设置为success
             boolean promiseSet = promise.trySuccess();
 
             // Regardless if the connection attempt was cancelled, channelActive() event should be triggered,
             // because what happened is what happened.
+            // 如果channel从inactive变为了active，那么调用pipeline的fireChannelActive方法
             if (!wasActive && active) {
                 pipeline().fireChannelActive();
             }
 
             // If a user cancelled the connection attempt, close the channel, which is followed by channelInactive().
+            // 如果设置成功失败，那么说明用户取消了这个连接，调用close方法关闭
             if (!promiseSet) {
                 close(voidPromise());
             }
@@ -338,7 +341,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             assert eventLoop().inEventLoop();
 
             try {
+                // 调用isActive方法获取channel当前是否是active状态的
                 boolean wasActive = isActive();
+                // 调用doFinishConnect执行具体的结束连接逻辑
                 doFinishConnect();
                 fulfillConnectPromise(connectPromise, wasActive);
             } catch (Throwable t) {

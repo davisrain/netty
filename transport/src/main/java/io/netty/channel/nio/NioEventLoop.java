@@ -185,10 +185,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             throw new ChannelException("failed to open a new selector", e);
         }
 
+        // 如果禁用了keySet的优化，默认为false，那么直接使用刚才创建的未经包装的selector，创建出一个SelectorTuple返回
         if (DISABLE_KEY_SET_OPTIMIZATION) {
             return new SelectorTuple(unwrappedSelector);
         }
 
+        // 加载出SelectorImpl类型，如果出现异常，那么返回异常对象
         Object maybeSelectorImplClass = AccessController.doPrivileged(new PrivilegedAction<Object>() {
             @Override
             public Object run() {
@@ -203,6 +205,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             }
         });
 
+        // 如果加载出的selectorImpl不为Class类型 或者 不是未包装的selector的父类，那么还是使用未包装的selector对象创建SelectorTuple返回
         if (!(maybeSelectorImplClass instanceof Class) ||
             // ensure the current selector implementation is what we can instrument.
             !((Class<?>) maybeSelectorImplClass).isAssignableFrom(unwrappedSelector.getClass())) {
@@ -214,32 +217,42 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
 
         final Class<?> selectorImplClass = (Class<?>) maybeSelectorImplClass;
+        // 创建出 被选择的SelectionKey的集合 对象
         final SelectedSelectionKeySet selectedKeySet = new SelectedSelectionKeySet();
 
         Object maybeException = AccessController.doPrivileged(new PrivilegedAction<Object>() {
             @Override
             public Object run() {
                 try {
+                    // 获取selectorImpl类中声明的selectedKeys字段
                     Field selectedKeysField = selectorImplClass.getDeclaredField("selectedKeys");
+                    // 获取selectorImpl类中声明的publicSelectedKeys字段
                     Field publicSelectedKeysField = selectorImplClass.getDeclaredField("publicSelectedKeys");
 
+                    // 如果java的版本大于等于9 并且 存在unsafe对象
                     if (PlatformDependent.javaVersion() >= 9 && PlatformDependent.hasUnsafe()) {
                         // Let us try to use sun.misc.Unsafe to replace the SelectionKeySet.
                         // This allows us to also do this in Java9+ without any extra flags.
+                        // 获取selectedKeys字段在类中的内存偏移量
                         long selectedKeysFieldOffset = PlatformDependent.objectFieldOffset(selectedKeysField);
+                        // 获取publicSelectedKeys字段在类中的内存偏移量
                         long publicSelectedKeysFieldOffset =
                                 PlatformDependent.objectFieldOffset(publicSelectedKeysField);
 
+                        // 如果两个字段的内存偏移量都存在的话
                         if (selectedKeysFieldOffset != -1 && publicSelectedKeysFieldOffset != -1) {
+                            // 将selectedKeySet放入到未包装的selector对象的对应字段中
                             PlatformDependent.putObject(
                                     unwrappedSelector, selectedKeysFieldOffset, selectedKeySet);
                             PlatformDependent.putObject(
                                     unwrappedSelector, publicSelectedKeysFieldOffset, selectedKeySet);
                             return null;
                         }
+                        // 如果没办法找到内存偏移量，那么使用反射作为最后的手段
                         // We could not retrieve the offset, lets try reflection as last-resort.
                     }
 
+                    // 如果设置字段的accessible出现异常，直接返回异常
                     Throwable cause = ReflectionUtil.trySetAccessible(selectedKeysField, true);
                     if (cause != null) {
                         return cause;
@@ -249,6 +262,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         return cause;
                     }
 
+                    // 通过反射将selectedKeySet设置进对应的字段中
                     selectedKeysField.set(unwrappedSelector, selectedKeySet);
                     publicSelectedKeysField.set(unwrappedSelector, selectedKeySet);
                     return null;
@@ -260,14 +274,19 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             }
         });
 
+        // 如果替换selectedKey字段出现异常，降级到使用未包装的selector创建SelectorTuple返回
         if (maybeException instanceof Exception) {
             selectedKeys = null;
             Exception e = (Exception) maybeException;
             logger.trace("failed to instrument a special java.util.Set into: {}", unwrappedSelector, e);
             return new SelectorTuple(unwrappedSelector);
         }
+        // 如果成功，将selectedKeySet给自身持有
         selectedKeys = selectedKeySet;
         logger.trace("instrumented a special java.util.Set into: {}", unwrappedSelector);
+        // 然后创建一个SelectedSelectionKeySetSelector包装类，通过包装类生成一个SelectorTuple对象返回。
+        // 该包装类的作用就是使用了一个SelectedSelectionKeySet将selector中的selectedKeys和publicSelectedKeys这两个字段替换了，并且给NioEventLoop持有了。
+        // 所以要获取到被选择的selectionKey，直接访问eventLoop持有的SelectedSelectionKeySet对象就行
         return new SelectorTuple(unwrappedSelector,
                                  new SelectedSelectionKeySetSelector(unwrappedSelector, selectedKeySet));
     }
@@ -673,7 +692,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     }
 
     private void processSelectedKeys() {
+        // 如果eventLoop持有的selectedKeys不为null
         if (selectedKeys != null) {
+            // 调用优化后的processSelectedKeys方法
             processSelectedKeysOptimized();
         } else {
             processSelectedKeysPlain(selector.selectedKeys());
@@ -753,15 +774,21 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     }
 
     private void processSelectedKeysOptimized() {
+        // 遍历持有的selectedKeys对象
         for (int i = 0; i < selectedKeys.size; ++i) {
+            // 获取其内部维护的数组对应下标的元素 即SelectionKey对象
             final SelectionKey k = selectedKeys.keys[i];
             // null out entry in the array to allow to have it GC'ed once the Channel close
             // See https://github.com/netty/netty/issues/2363
+            // 将数组对应下标设置为null
             selectedKeys.keys[i] = null;
 
+            // 获取selectionKey的attachment
             final Object a = k.attachment();
 
+            // 如果attachment是AbstractNioChannel类型的
             if (a instanceof AbstractNioChannel) {
+                // 调用processSelectedKey方法进行处理
                 processSelectedKey(k, (AbstractNioChannel) a);
             } else {
                 @SuppressWarnings("unchecked")
@@ -769,12 +796,16 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 processSelectedKey(k, task);
             }
 
+            // 如果needsToSelectAgain为true的话
             if (needsToSelectAgain) {
                 // null out entries in the array to allow to have it GC'ed once the Channel close
                 // See https://github.com/netty/netty/issues/2363
+                // 将i + 1 到 size的元素都设置为null
                 selectedKeys.reset(i + 1);
 
+                // 然后再次调用selectNow方法
                 selectAgain();
+                // 并且将i赋值为-1
                 i = -1;
             }
         }
