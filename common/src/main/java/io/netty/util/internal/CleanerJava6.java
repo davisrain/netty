@@ -71,13 +71,19 @@ final class CleanerJava6 implements Cleaner {
 
             // If we have sun.misc.Unsafe we will use it as its faster then using reflection,
             // otherwise let us try reflection as last resort.
+            // 如果存在unsafe
             if (PlatformDependent.hasUnsafe()) {
+                // 获取cleaner字段再内存中的位置
                 fieldOffset = PlatformDependent0.objectFieldOffset(cleanerField);
+                // 然后获取对应的Cleaner对象
                 cleaner = PlatformDependent0.getObject(direct, fieldOffset);
-            } else {
+            }
+            // 如果不存在unsafe，通过反射获取对象
+            else {
                 fieldOffset = -1;
                 cleaner = cleanerField.get(direct);
             }
+            // 获取cleaner的clean方法，进行调用
             clean = cleaner.getClass().getDeclaredMethod("clean");
             clean.invoke(cleaner);
         } catch (Throwable t) {
@@ -93,6 +99,7 @@ final class CleanerJava6 implements Cleaner {
         } else {
             logger.debug("java.nio.ByteBuffer.cleaner(): unavailable", error);
         }
+        // 将cleaner字段 cleaner字段的内存位置 还有cleaner的clean方法赋值给自身持有
         CLEANER_FIELD = cleanerField;
         CLEANER_FIELD_OFFSET = fieldOffset;
         CLEAN_METHOD = clean;
@@ -104,11 +111,13 @@ final class CleanerJava6 implements Cleaner {
 
     @Override
     public void freeDirectBuffer(ByteBuffer buffer) {
+        // 如果buffer不是直接内存，直接返回
         if (!buffer.isDirect()) {
             return;
         }
         if (System.getSecurityManager() == null) {
             try {
+                // 调用freeDirectBuffer0方法释放直接内存
                 freeDirectBuffer0(buffer);
             } catch (Throwable cause) {
                 PlatformDependent0.throwException(cause);
@@ -139,11 +148,14 @@ final class CleanerJava6 implements Cleaner {
         final Object cleaner;
         // If CLEANER_FIELD_OFFSET == -1 we need to use reflection to access the cleaner, otherwise we can use
         // sun.misc.Unsafe.
+        // 如果cleaner字段的内存位置为-1，那么只能通过反射获取cleaner对象
         if (CLEANER_FIELD_OFFSET == -1) {
             cleaner = CLEANER_FIELD.get(buffer);
         } else {
+            // 否则通过unsafe获取
             cleaner = PlatformDependent0.getObject(buffer, CLEANER_FIELD_OFFSET);
         }
+        // 如果cleaner不为null，调用其clean方法释放直接内存
         if (cleaner != null) {
             CLEAN_METHOD.invoke(cleaner);
         }

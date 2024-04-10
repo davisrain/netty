@@ -527,8 +527,10 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
 
         private void calculateMaxBytesPerGatheringWrite() {
             // Multiply by 2 to give some extra space in case the OS can process write data faster than we can provide.
+            // 将socket中的sendBufferSize乘以2，以防操作系统处理写数据过快
             int newSendBufferSize = getSendBufferSize() << 1;
             if (newSendBufferSize > 0) {
+                // 设置为maxBytesPerGatheringWrite
                 setMaxBytesPerGatheringWrite(newSendBufferSize);
             }
         }

@@ -98,7 +98,9 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
      *                     a heap buffer
      */
     protected AbstractByteBufAllocator(boolean preferDirect) {
+        // 如果preferDirect为true并且存在unsafe，那么默认使用直接内存
         directByDefault = preferDirect && PlatformDependent.hasUnsafe();
+        // 创建一个空的ByteBuf
         emptyBuf = new EmptyByteBuf(this);
     }
 

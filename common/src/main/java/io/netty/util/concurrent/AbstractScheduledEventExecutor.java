@@ -225,18 +225,23 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
         ObjectUtil.checkNotNull(command, "command");
         ObjectUtil.checkNotNull(unit, "unit");
+        // 如果initialDelay小于0，报错
         if (initialDelay < 0) {
             throw new IllegalArgumentException(
                     String.format("initialDelay: %d (expected: >= 0)", initialDelay));
         }
+        //  如果period小于等于0，报错
         if (period <= 0) {
             throw new IllegalArgumentException(
                     String.format("period: %d (expected: > 0)", period));
         }
+        // 验证时间，留给子类实现
         validateScheduled0(initialDelay, unit);
         validateScheduled0(period, unit);
 
+        // 调用schedule方法
         return schedule(new ScheduledFutureTask<Void>(
+                // 计算出该任务要执行的deadline
                 this, command, deadlineNanos(getCurrentTimeNanos(), unit.toNanos(initialDelay)), unit.toNanos(period)));
     }
 

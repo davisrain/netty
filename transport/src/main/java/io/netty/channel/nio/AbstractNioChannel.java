@@ -80,7 +80,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         super(parent);
         // 持有java nio的channel
         this.ch = ch;
-        // 持有需要监听的option NioServerSocketChannel监听的是accept
+        // 持有需要监听的option NioServerSocketChannel监听的是accept，NioSocketChannel监听的是read
         this.readInterestOp = readInterestOp;
         try {
             // 设置javaChannel的阻塞模式为false

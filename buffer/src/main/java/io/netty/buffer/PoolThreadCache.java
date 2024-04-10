@@ -67,9 +67,13 @@ final class PoolThreadCache {
                     int smallCacheSize, int normalCacheSize, int maxCachedBufferCapacity,
                     int freeSweepAllocationThreshold) {
         checkPositiveOrZero(maxCachedBufferCapacity, "maxCachedBufferCapacity");
+        // 设置分配多少次之后进行缓存清理的阈值
         this.freeSweepAllocationThreshold = freeSweepAllocationThreshold;
+        // 设置堆内存的arena
         this.heapArena = heapArena;
+        // 设置直接内存的arena
         this.directArena = directArena;
+
         if (directArena != null) {
             smallSubPageDirectCaches = createSubPageCaches(
                     smallCacheSize, directArena.numSmallSubpagePools);

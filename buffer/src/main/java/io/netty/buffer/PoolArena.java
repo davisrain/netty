@@ -77,9 +77,12 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
     protected PoolArena(PooledByteBufAllocator parent, int pageSize,
           int pageShifts, int chunkSize, int cacheAlignment) {
         super(pageSize, pageShifts, chunkSize, cacheAlignment);
+        // 持有allocator
         this.parent = parent;
+        // 直接内存缓存对齐
         directMemoryCacheAlignment = cacheAlignment;
 
+        //
         numSmallSubpagePools = nSubpages;
         smallSubpagePools = newSubpagePoolArray(numSmallSubpagePools);
         for (int i = 0; i < smallSubpagePools.length; i ++) {

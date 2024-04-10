@@ -159,23 +159,34 @@ public final class PlatformDependent {
         //           (note: that JDK's direct memory limit is independent of this).
         long maxDirectMemory = SystemPropertyUtil.getLong("io.netty.maxDirectMemory", -1);
 
+        // 如果netty自己配置的最大直接内存为0 或者 不存在unsafe 或者 不存在不带cleaner的directByteBuffer的构造器
         if (maxDirectMemory == 0 || !hasUnsafe() || !PlatformDependent0.hasDirectBufferNoCleanerConstructor()) {
+            // 那么将USE_DIRECT_BUFFER_NO_CLEANER置为false，表示需要使用cleaner
             USE_DIRECT_BUFFER_NO_CLEANER = false;
             DIRECT_MEMORY_COUNTER = null;
         } else {
+            // 否则USE_DIRECT_BUFFER_NO_CLEANER置为true，表示可以不使用cleaner
             USE_DIRECT_BUFFER_NO_CLEANER = true;
+            // 如果netty自己配置的最大直接内存小于0
             if (maxDirectMemory < 0) {
+                // 获取jvm配置的最大直接内存
                 maxDirectMemory = MAX_DIRECT_MEMORY;
+                // 如果maxDirectMemory仍然小于等于0
                 if (maxDirectMemory <= 0) {
+                    // 将DIRECT_MEMORY_COUNTER设置为null
                     DIRECT_MEMORY_COUNTER = null;
                 } else {
+                    // 否则，创建一个AtomicLong赋值给DIRECT_MEMORY_COUNTER
                     DIRECT_MEMORY_COUNTER = new AtomicLong();
                 }
-            } else {
+            }
+            // 如果netty配置的最大直接内存大于0，创建一个AtomicLong赋值给DIRECT_MEMORY_COUNTER
+            else {
                 DIRECT_MEMORY_COUNTER = new AtomicLong();
             }
         }
         logger.debug("-Dio.netty.maxDirectMemory: {} bytes", maxDirectMemory);
+        // 将DIRECT_MEMORY_LIMIT设置为maxDirectMemory，如果maxDirectMemory为0，使用jvm的最大直接内存
         DIRECT_MEMORY_LIMIT = maxDirectMemory >= 1 ? maxDirectMemory : MAX_DIRECT_MEMORY;
 
         int tryAllocateUninitializedArray =
@@ -186,12 +197,15 @@ public final class PlatformDependent {
 
         MAYBE_SUPER_USER = maybeSuperUser0();
 
+        // 如果不是安卓系统
         if (!isAndroid()) {
             // only direct to method if we are not running on android.
             // See https://github.com/netty/netty/issues/2604
+            // 如果java版本大于等于9
             if (javaVersion() >= 9) {
                 CLEANER = CleanerJava9.isSupported() ? new CleanerJava9() : NOOP;
             } else {
+                // 如果java版本小于9，并且DirectByteBuffer中存在cleaner字段，创建一个CleanerJava6赋值给CLEANER，否则使用NOOP
                 CLEANER = CleanerJava6.isSupported() ? new CleanerJava6() : NOOP;
             }
         } else {
@@ -199,6 +213,7 @@ public final class PlatformDependent {
         }
 
         // We should always prefer direct buffers by default if we can use a Cleaner to release direct buffers.
+        // 如果CLEANER不为NOOP，说明存在直接内存的cleaner  并且 noPreferDirect参数不为false，那么DIRECT_BUFFER_PREFERRED为true，更倾向于用直接内存
         DIRECT_BUFFER_PREFERRED = CLEANER != NOOP
                                   && !SystemPropertyUtil.getBoolean("io.netty.noPreferDirect", false);
         if (logger.isDebugEnabled()) {
@@ -814,6 +829,7 @@ public final class PlatformDependent {
     }
 
     public static boolean hasAlignDirectByteBuffer() {
+        // 如果存在unsafe 或者 存在alignSlice方法
         return hasUnsafe() || PlatformDependent0.hasAlignSliceMethod();
     }
 
@@ -836,6 +852,8 @@ public final class PlatformDependent {
     }
 
     public static long align(long value, int alignment) {
+        // alignment必须是2的幂次方，value转换为alignment的整数倍。
+        // 通过value + (long)(alignment - 1) & (long)(~(alignment - 1))来实现
         return Pow2.align(value, alignment);
     }
 
@@ -1219,12 +1237,14 @@ public final class PlatformDependent {
                 // Try to get from sun.misc.VM.maxDirectMemory() which should be most accurate.
                 Class<?> vmClass = Class.forName("sun.misc.VM", true, systemClassLoader);
                 Method m = vmClass.getDeclaredMethod("maxDirectMemory");
+                // 调用VM的maxDirectMemory方法获取最大内存
                 maxDirectMemory = ((Number) m.invoke(null)).longValue();
             }
         } catch (Throwable ignored) {
             // Ignore
         }
 
+        // 如果最大内存大于0，直接返回
         if (maxDirectMemory > 0) {
             return maxDirectMemory;
         }
@@ -1237,16 +1257,20 @@ public final class PlatformDependent {
             Class<?> runtimeClass = Class.forName(
                     "java.lang.management.RuntimeMXBean", true, systemClassLoader);
 
+            // 否则调用ManagementFactory的getRuntimeMXBean方法获取RuntimeMXBean对象
             Object runtime = mgmtFactoryClass.getDeclaredMethod("getRuntimeMXBean").invoke(null);
 
             @SuppressWarnings("unchecked")
+                    //   然后调用RuntimeMXBean对象的getInputArguments方法获取jvm的启动参数
             List<String> vmArgs = (List<String>) runtimeClass.getDeclaredMethod("getInputArguments").invoke(runtime);
             for (int i = vmArgs.size() - 1; i >= 0; i --) {
+                // 如果启动参数匹配-XX:MaxDirectMemorySize
                 Matcher m = MAX_DIRECT_MEMORY_SIZE_ARG_PATTERN.matcher(vmArgs.get(i));
                 if (!m.matches()) {
                     continue;
                 }
 
+                // 解析配置的最大直接内存，将其转换为字节单位
                 maxDirectMemory = Long.parseLong(m.group(1));
                 switch (m.group(2).charAt(0)) {
                     case 'k': case 'K':
@@ -1267,6 +1291,7 @@ public final class PlatformDependent {
             // Ignore
         }
 
+        //  如果最大直接内存还是小于等于0，那么直接取堆内存大小
         if (maxDirectMemory <= 0) {
             maxDirectMemory = Runtime.getRuntime().maxMemory();
             logger.debug("maxDirectMemory: {} bytes (maybe)", maxDirectMemory);
@@ -1274,6 +1299,7 @@ public final class PlatformDependent {
             logger.debug("maxDirectMemory: {} bytes", maxDirectMemory);
         }
 
+        // 返回最大直接内存
         return maxDirectMemory;
     }
 

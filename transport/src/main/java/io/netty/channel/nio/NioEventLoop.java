@@ -533,6 +533,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 int strategy;
                 try {
                     // 使用 选择策略计算应该使用哪种策略
+                    // 如果存在任务，调用selectNow方法，如果不存在任务，返回SELECT(-1)
                     strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
                     switch (strategy) {
                         // 如果是CONTINUE策略，直接继续循环

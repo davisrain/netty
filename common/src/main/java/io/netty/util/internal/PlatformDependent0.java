@@ -278,13 +278,16 @@ final class PlatformDependent0 {
             Constructor<?> directBufferConstructor;
             long address = -1;
             try {
+                // 获取DirectByteBuffer的不带cleaner的构造器，即参数为address和capacity的构造器
                 final Object maybeDirectBufferConstructor =
                         AccessController.doPrivileged(new PrivilegedAction<Object>() {
                             @Override
                             public Object run() {
                                 try {
+                                    //  获取DirectByteBuffer类的带 address 和 capacity的构造方法
                                     final Constructor<?> constructor =
                                             direct.getClass().getDeclaredConstructor(long.class, int.class);
+                                    // 如果获取访问权限失败，直接返回异常
                                     Throwable cause = ReflectionUtil.trySetAccessible(constructor, true);
                                     if (cause != null) {
                                         return cause;
@@ -298,11 +301,15 @@ final class PlatformDependent0 {
                             }
                         });
 
+                //  如果获取到了对应的构造器
                 if (maybeDirectBufferConstructor instanceof Constructor<?>) {
+                    // 分配内存地址
                     address = UNSAFE.allocateMemory(1);
                     // try to use the constructor now
                     try {
+                        // 调用构造器创建DirectByteBuffer对象
                         ((Constructor<?>) maybeDirectBufferConstructor).newInstance(address, 1);
+                        //  如果成功了 将maybeDirectBufferConstructor赋值给directBufferConstructor。否则将directBufferConstructor置为null
                         directBufferConstructor = (Constructor<?>) maybeDirectBufferConstructor;
                         logger.debug("direct buffer constructor: available");
                     } catch (InstantiationException e) {
@@ -312,7 +319,9 @@ final class PlatformDependent0 {
                     } catch (InvocationTargetException e) {
                         directBufferConstructor = null;
                     }
-                } else {
+                }
+                // 如果连构造器都没获取到，directBufferConstructor直接设置为null
+                else {
                     if (logger.isTraceEnabled()) {
                         logger.debug("direct buffer constructor: unavailable",
                                 (Throwable) maybeDirectBufferConstructor);
@@ -323,10 +332,12 @@ final class PlatformDependent0 {
                     directBufferConstructor = null;
                 }
             } finally {
+                // 释放内存
                 if (address != -1) {
                     UNSAFE.freeMemory(address);
                 }
             }
+            // 将directBufferConstructor赋值给DIRECT_BUFFER_CONSTRUCTOR
             DIRECT_BUFFER_CONSTRUCTOR = directBufferConstructor;
             ADDRESS_FIELD_OFFSET = objectFieldOffset(addressField);
             BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
@@ -467,6 +478,7 @@ final class PlatformDependent0 {
                 @Override
                 public Object run() {
                     try {
+                        // 获取ByteBuffer的alignedSlice方法
                         return ByteBuffer.class.getDeclaredMethod("alignedSlice", int.class);
                     } catch (Exception e) {
                         return null;

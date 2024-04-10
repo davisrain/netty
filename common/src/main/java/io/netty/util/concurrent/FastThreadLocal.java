@@ -170,6 +170,7 @@ public class FastThreadLocal<V> {
      */
     @SuppressWarnings("unchecked")
     public final V getIfExists() {
+        // 如果存在才返回，不会调用initialize方法
         InternalThreadLocalMap threadLocalMap = InternalThreadLocalMap.getIfSet();
         if (threadLocalMap != null) {
             Object v = threadLocalMap.indexedVariable(index);
