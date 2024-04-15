@@ -451,7 +451,7 @@ abstract class SizeClasses implements SizeClassesMetric {
         int mod = (size - 1 & deltaInverseMask) >> log2Delta &
                   (1 << LOG2_SIZE_CLASS_GROUP) - 1;
 
-        // 将group + mod，就是size应该分配的sizeClass的下标indexß
+        // 将group + mod，就是size应该分配的sizeClass的下标index
         return group + mod;
     }
 
@@ -462,35 +462,46 @@ abstract class SizeClasses implements SizeClassesMetric {
 
     @Override
     public int pages2pageIdxFloor(int pages) {
+        // 根据pages的数量获取到对应的sizeClass的index，并且是获取floor方向的值
         return pages2pageIdxCompute(pages, true);
     }
 
     private int pages2pageIdxCompute(int pages, boolean floor) {
+        // 获取到pages个page的总的size大小，totalSize
         int pageSize = pages << pageShifts;
+        // 如果大于了chunkSize的话，直接返回nPSizes
         if (pageSize > chunkSize) {
             return nPSizes;
         }
 
+        // 获取totalSize在 pageIdx2sizeTab中所在的group的log2Group + 1
         int x = log2((pageSize << 1) - 1);
 
+        // 将x减去pageShifts 以及 LOG2_SIZE_CLASS_GROUP，得到的是totalSize对应的组的偏移量
         int shift = x < LOG2_SIZE_CLASS_GROUP + pageShifts
                 ? 0 : x - (LOG2_SIZE_CLASS_GROUP + pageShifts);
 
+        // 获取totalSize对应的pageIdx2sizeTab中的组的第一个sizeClass的位置
         int group = shift << LOG2_SIZE_CLASS_GROUP;
 
+        // 获取totalSize所在的group对应的log2Delta
         int log2Delta = x < LOG2_SIZE_CLASS_GROUP + pageShifts + 1?
                 pageShifts : x - LOG2_SIZE_CLASS_GROUP - 1;
 
+        // 计算出totalSize在所在group的偏移量
         int deltaInverseMask = -1 << log2Delta;
         int mod = (pageSize - 1 & deltaInverseMask) >> log2Delta &
                   (1 << LOG2_SIZE_CLASS_GROUP) - 1;
 
+        // pageIdx就等于所在的group的第一个位置 + group中的偏移量
         int pageIdx = group + mod;
 
+        // 如果是取floor，并且pageIdx2sizeTab中pageIdx对应的sizeClass的size比totalSize大的话，那么将pageIdx - 1
         if (floor && pageIdx2sizeTab[pageIdx] > pages << pageShifts) {
             pageIdx--;
         }
 
+        // 返回pageIdx
         return pageIdx;
     }
 
@@ -508,24 +519,36 @@ abstract class SizeClasses implements SizeClassesMetric {
 
     @Override
     public int normalizeSize(int size) {
+        // 如果size等于0，返回sizeClasses中index为0的sizeClass对应的size
         if (size == 0) {
             return sizeIdx2sizeTab[0];
         }
+        // 将size按照directMemoryCacheAlignment对齐
         size = alignSizeIfNeeded(size, directMemoryCacheAlignment);
+        // 如果size小于等于lookupMaxSize
         if (size <= lookupMaxSize) {
+            // 获取到sizeClasses中存在的不小于原本size的最小的size
             int ret = sizeIdx2sizeTab[size2idxTab[size - 1 >> LOG2_QUANTUM]];
+            // 确认ret等于normalizeSizeCompute方法返回的值
             assert ret == normalizeSizeCompute(size);
+            // 返回ret
             return ret;
         }
+        // 返回normalizeSizeCompute方法的返回值
         return normalizeSizeCompute(size);
     }
 
     private static int normalizeSizeCompute(int size) {
+        // 获取x = size所在group的log2Group + 1
         int x = log2((size << 1) - 1);
+        // 获取size所在group的 log2Delta
         int log2Delta = x < LOG2_SIZE_CLASS_GROUP + LOG2_QUANTUM + 1
                 ? LOG2_QUANTUM : x - LOG2_SIZE_CLASS_GROUP - 1;
         int delta = 1 << log2Delta;
+        // 计算得到delta的mask
         int delta_mask = delta - 1;
+        // 将size + delta_mask 再同delta_mask的反码进行位于操作，
+        // 保证了size是delta的倍数
         return size + delta_mask & ~delta_mask;
     }
 }

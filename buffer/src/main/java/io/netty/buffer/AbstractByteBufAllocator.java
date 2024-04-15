@@ -181,15 +181,19 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
 
     @Override
     public ByteBuf directBuffer(int initialCapacity) {
+        // 使用默认的要分配的最大容量，默认是Integer的最大值
         return directBuffer(initialCapacity, DEFAULT_MAX_CAPACITY);
     }
 
     @Override
     public ByteBuf directBuffer(int initialCapacity, int maxCapacity) {
+        // 如果初始容量 和 最大容量 都为0，直接返回emptyBuf
         if (initialCapacity == 0 && maxCapacity == 0) {
             return emptyBuf;
         }
+        // 验证初始容量 和 最大容量的合法性，即初始容量要大于0，且要小于等于最大容量
         validate(initialCapacity, maxCapacity);
+        // 创建一个直接内存的ByteBuf返回
         return newDirectBuffer(initialCapacity, maxCapacity);
     }
 

@@ -76,6 +76,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     protected AbstractByteBuf(int maxCapacity) {
         checkPositiveOrZero(maxCapacity, "maxCapacity");
+        // 设置最大容量
         this.maxCapacity = maxCapacity;
     }
 

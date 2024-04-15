@@ -788,8 +788,10 @@ public final class PlatformDependent {
     public static ByteBuffer allocateDirectNoCleaner(int capacity) {
         assert USE_DIRECT_BUFFER_NO_CLEANER;
 
+        // 增加直接内存的计数器
         incrementMemoryCounter(capacity);
         try {
+            // 调用不带cleaner的DirectByteBuffer的构造器
             return PlatformDependent0.allocateDirectNoCleaner(capacity);
         } catch (Throwable e) {
             decrementMemoryCounter(capacity);
@@ -837,13 +839,19 @@ public final class PlatformDependent {
         if (!buffer.isDirect()) {
             throw new IllegalArgumentException("Cannot get aligned slice of non-direct byte buffer.");
         }
+        // 如果ByteBuffer存在alignedSlice方法，通过反射调用
         if (PlatformDependent0.hasAlignSliceMethod()) {
             return PlatformDependent0.alignSlice(buffer, alignment);
         }
+        // 如果存在unsafe
         if (hasUnsafe()) {
+            // 通过unsafe获取ByteBuffer的address字段的值
             long address = directBufferAddress(buffer);
+            // 将address按照alignment对齐
             long aligned = align(address, alignment);
+            // 然后将buffer的position设置为aligned - address的位置
             buffer.position((int) (aligned - address));
+            // 调用buffer的slice方法，将position之前的字节截取掉
             return buffer.slice();
         }
         // We don't have enough information to be able to align any buffers.
@@ -859,9 +867,13 @@ public final class PlatformDependent {
 
     private static void incrementMemoryCounter(int capacity) {
         if (DIRECT_MEMORY_COUNTER != null) {
+            // 将直接内存的计数器 增加 capacity
             long newUsedMemory = DIRECT_MEMORY_COUNTER.addAndGet(capacity);
+            // 如果使用的直接内存大于了 直接内存的限制
             if (newUsedMemory > DIRECT_MEMORY_LIMIT) {
+                // 将计数器减去刚才 capacity
                 DIRECT_MEMORY_COUNTER.addAndGet(-capacity);
+                // 抛出oom
                 throw new OutOfDirectMemoryError("failed to allocate " + capacity
                         + " byte(s) of direct memory (used: " + (newUsedMemory - capacity)
                         + ", max: " + DIRECT_MEMORY_LIMIT + ')');

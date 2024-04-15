@@ -20,6 +20,7 @@ import io.netty.util.internal.StringUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
@@ -48,9 +49,13 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
         assert minUsage <= maxUsage;
         this.arena = arena;
         this.nextList = nextList;
+        // 最小使用比例
         this.minUsage = minUsage;
+        // 最大使用比例
         this.maxUsage = maxUsage;
+        // 根据最小使用比例 和 chunkSize计算该poolChunkList的最大容量
         maxCapacity = calculateMaxCapacity(minUsage, chunkSize);
+        
 
         // the thresholds are aligned with PoolChunk.usage() logic:
         // 1) basic logic: usage() = 100 - freeBytes * 100L / chunkSize
@@ -78,6 +83,7 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
     private static int calculateMaxCapacity(int minUsage, int chunkSize) {
         minUsage = minUsage0(minUsage);
 
+        // 如果最小使用比例为100，直接返回0，我们没法再从该ChunkList分配任何空间了
         if (minUsage == 100) {
             // If the minUsage is 100 we can not allocate anything out of this list.
             return 0;
@@ -88,6 +94,7 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
         // As an example:
         // - If a PoolChunkList has minUsage == 25 we are allowed to allocate at most 75% of the chunkSize because
         //   this is the maximum amount available in any PoolChunk in this PoolChunkList.
+        // 根据最小使用比例，计算能使用的最大容量
         return  (int) (chunkSize * (100L - minUsage) / 100L);
     }
 
@@ -97,17 +104,24 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
     }
 
     boolean allocate(PooledByteBuf<T> buf, int reqCapacity, int sizeIdx, PoolThreadCache threadCache) {
+        // 根据sizeIdx获取对应的size大小
         int normCapacity = arena.sizeIdx2size(sizeIdx);
+        // 如果大于了该ChunkList的最大容量，直接返回false
         if (normCapacity > maxCapacity) {
             // Either this PoolChunkList is empty or the requested capacity is larger then the capacity which can
             // be handled by the PoolChunks that are contained in this PoolChunkList.
             return false;
         }
 
+        // 获取PoolChunk链表的头节点
         for (PoolChunk<T> cur = head; cur != null; cur = cur.next) {
+            // 调用当前节点的allocate方法进行分配
             if (cur.allocate(buf, reqCapacity, sizeIdx, threadCache)) {
+                // 如果分配完成，检验当前节点的空闲字节是否已经小于当前ChunkList的最小空闲空间的阈值了
                 if (cur.freeBytes <= freeMinThreshold) {
+                    // 如果是的话，将其从当前ChunkList中删除
                     remove(cur);
+                    // 添加到下一个ChunkList中
                     nextList.add(cur);
                 }
                 return true;
@@ -154,10 +168,13 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
     }
 
     void add(PoolChunk<T> chunk) {
+        // 如果chunk的空闲字节小于了当前这个chunkList的最小空闲阈值
         if (chunk.freeBytes <= freeMinThreshold) {
+            // 那么将调用下一个chunkList的add方法
             nextList.add(chunk);
             return;
         }
+        // 否则的话，操作链表，将chunk加入到当前chunkList中
         add0(chunk);
     }
 

@@ -452,11 +452,16 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
 
     @Override
     protected ByteBuf newDirectBuffer(int initialCapacity, int maxCapacity) {
+        // 获取线程的FastThreadLocal对应的PoolThreadCache对象，
+        // 如果没有的话，会调用FastThreadLocal的initialValue方法创建一个新的缓存
         PoolThreadCache cache = threadCache.get();
+        // 获取cache中持有的直接内存的arena
         PoolArena<ByteBuffer> directArena = cache.directArena;
 
         final ByteBuf buf;
+        // 如果直接内存arena不为null
         if (directArena != null) {
+            // 调用其allocate方法执行具体的分配内存的逻辑，生成一个ByteBuf返回
             buf = directArena.allocate(cache, initialCapacity, maxCapacity);
         } else {
             buf = PlatformDependent.hasUnsafe() ?
@@ -590,7 +595,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
                     // The Thread is used by an EventExecutor, let's use the cache as the chances are good that we
                     // will allocate a lot!
                     executor != null) {
-                // 使用缓存，将arena缓存起来
+                // 创建一个PoolThreadCache作为分配的内存的缓存
                 final PoolThreadCache cache = new PoolThreadCache(
                         heapArena, directArena, smallCacheSize, normalCacheSize,
                         DEFAULT_MAX_CACHED_BUFFER_CAPACITY, DEFAULT_CACHE_TRIM_INTERVAL);

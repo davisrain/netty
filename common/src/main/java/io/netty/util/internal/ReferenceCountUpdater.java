@@ -60,10 +60,14 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
     }
 
     public void setInitialValue(T instance) {
+        // 获取要更新字段的offset
         final long offset = unsafeOffset();
+        // 如果offset为-1的话
         if (offset == -1) {
+            // 使用自身持有的java的updater进行设置，初始值为2
             updater().set(instance, initialValue());
         } else {
+            // 否则，使用unsafe通过offset设置初始值
             PlatformDependent.safeConstructPutInt(instance, offset, initialValue());
         }
     }

@@ -73,6 +73,7 @@ public abstract class ObjectPool<T> {
         private final Recycler<T> recycler;
 
         RecyclerObjectPool(final ObjectCreator<T> creator) {
+            // 将传入的creator包装成一个Recycler持有
              recycler = new Recycler<T>() {
                 @Override
                 protected T newObject(Handle<T> handle) {
@@ -83,6 +84,7 @@ public abstract class ObjectPool<T> {
 
         @Override
         public T get() {
+            // 调用recycler的get方法
             return recycler.get();
         }
     }

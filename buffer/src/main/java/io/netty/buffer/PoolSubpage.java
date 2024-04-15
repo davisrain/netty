@@ -58,22 +58,37 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
     }
 
     PoolSubpage(PoolSubpage<T> head, PoolChunk<T> chunk, int pageShifts, int runOffset, int runSize, int elemSize) {
+        // 设置自身chunk
         this.chunk = chunk;
+        // 设置pageShifts
         this.pageShifts = pageShifts;
+        // 设置runOffset
         this.runOffset = runOffset;
+        // 设置runSize
         this.runSize = runSize;
+        // 设置elemSize
         this.elemSize = elemSize;
+        // 创建一个long类型的数组作为bitmap，length为runSize无符号右移6 + LOG2_QUANTUM(4)位
+        // 因为sizeClasses中的sizeClass的size大小都是2^LOG2_QUANTUM的倍数，因此可以直接除以2^LOG2_QUANTUM的大小；
+        // 又因为long是64位，除以64表示需要多少个long来表示内存的位图，即long数组的长度
         bitmap = new long[runSize >>> 6 + LOG2_QUANTUM]; // runSize / 64 / QUANTUM
 
+        // 设置doNotDestroy为true
         doNotDestroy = true;
+        // 如果elemSize不为0
         if (elemSize != 0) {
+            // 计算当前runSize包含elemSiz的数量
             maxNumElems = numAvail = runSize / elemSize;
+            // 将下一个可用的elem的下标设置为0
             nextAvail = 0;
+            // bitmap的长度为 最大的elem数量右移6位，代表要需要多少个long来表示elemSize的位图
             bitmapLength = maxNumElems >>> 6;
+            // 如果maxNumElems位与63不为0的话，说明elem的数量不是64的整数倍，因此需要添加一个long来表示位图，将bitmapLength + 1
             if ((maxNumElems & 63) != 0) {
                 bitmapLength ++;
             }
         }
+        // 将自身添加进PoolSubpage链表中
         addToPool(head);
     }
 
@@ -81,26 +96,36 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
      * Returns the bitmap index of the subpage allocation.
      */
     long allocate() {
+        // 如果可用数量为0 或者 doNotDestroy为false的话，直接返回-1，表示分配失败
         if (numAvail == 0 || !doNotDestroy) {
             return -1;
         }
 
+        // 获取到下一个可用的elem的位图index
         final int bitmapIdx = getNextAvail();
+        // 如果bitmapIdx小于0
         if (bitmapIdx < 0) {
+            // 将PoolSubpage从内存池中删除，避免重复报错
             removeFromPool(); // Subpage appear to be in an invalid state. Remove to prevent repeated errors.
             throw new AssertionError("No next available bitmap index found (bitmapIdx = " + bitmapIdx + "), " +
                     "even though there are supposed to be (numAvail = " + numAvail + ") " +
                     "out of (maxNumElems = " + maxNumElems + ") available indexes.");
         }
+        // 获取bitmapIdx在bitmap数组中的下标
         int q = bitmapIdx >>> 6;
+        // 获取bitmapIdx在long中的位置
         int r = bitmapIdx & 63;
+        // 确保对应的位上面的值是0
         assert (bitmap[q] >>> r & 1) == 0;
+        // 将bitmap中对应的位设置为1，表示占用
         bitmap[q] |= 1L << r;
 
+        // 将numAvail - 1，并且判断如果等于0了，说明当前PoolSubpage对应的run已经用完了，将其从内存池中删除
         if (-- numAvail == 0) {
             removeFromPool();
         }
 
+        // 根据bitmapIdx生成handle返回
         return toHandle(bitmapIdx);
     }
 
@@ -167,36 +192,52 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
     }
 
     private int getNextAvail() {
+        // 如果nextAvail大于等于0
         int nextAvail = this.nextAvail;
         if (nextAvail >= 0) {
+            // 将自身的nextAvail设置为-1，返回nextAvail
             this.nextAvail = -1;
             return nextAvail;
         }
+        // 否则调用findNextAvail进行查找
         return findNextAvail();
     }
 
     private int findNextAvail() {
+        // 获取自身持有的位图
         final long[] bitmap = this.bitmap;
+        // 获取位图对应的长度
         final int bitmapLength = this.bitmapLength;
-        for (int i = 0; i < bitmapLength; i ++) {
+        // 遍历位图
+        for (int i = 0; i < bitmapLength; i++) {
             long bits = bitmap[i];
+            // 如果将位图取反不为0，说明有未被占用的elem
             if (~bits != 0) {
+                // 调用findNextAvail0找到未被占用的elem在位图中的index返回
                 return findNextAvail0(i, bits);
             }
         }
+        // 如果没找到，返回-1
         return -1;
     }
 
     private int findNextAvail0(int i, long bits) {
+        // 获取该subpage能够容纳的最大elem的数量
         final int maxNumElems = this.maxNumElems;
+        // 将i左移6位，获取到可用elem所在的index的基础位置
         final int baseVal = i << 6;
-
+        // 然后从低到高依次遍历位图的每一位
         for (int j = 0; j < 64; j ++) {
+            // 如果发现某一位为0
             if ((bits & 1) == 0) {
+                // 将该位与baseVal做位或操作，得到可用的elem的index
                 int val = baseVal | j;
+                // 如果val小于最大的elem数量，返回val
                 if (val < maxNumElems) {
                     return val;
-                } else {
+                }
+                // 否则跳出循环，返回-1
+                else {
                     break;
                 }
             }

@@ -47,6 +47,7 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     protected AbstractReferenceCountedByteBuf(int maxCapacity) {
         super(maxCapacity);
+        // 通过unsafe设置自身的refCnt属性的值
         updater.setInitialValue(this);
     }
 

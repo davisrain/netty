@@ -62,15 +62,25 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
         assert !PoolChunk.isSubpage(handle) || chunk.arena.size2SizeIdx(maxLength) <= chunk.arena.smallMaxSizeIdx:
                 "Allocated small sub-page handle for a buffer size that isn't \"small.\"";
 
+        // 将chunk中记录分配过的内存 加上 maxLength
         chunk.incrementPinnedMemory(maxLength);
+        // 设置chunk
         this.chunk = chunk;
+        // 设置memory为chunk中持有的memory
         memory = chunk.memory;
+        // 设置tmpNioBuffer为传入的nioBuffer，可能为null
         tmpNioBuf = nioBuffer;
+        // 设置allocator为arena中持有的allocator
         allocator = chunk.arena.parent;
+        // 设置自身的cache为传入的PoolThreadCache
         this.cache = cache;
+        // 设置自身的handle
         this.handle = handle;
+        // 设置内存的偏移量
         this.offset = offset;
+        // 设置请求分配的内存长度
         this.length = length;
+        // 设置实际分配的内存长度
         this.maxLength = maxLength;
     }
 
@@ -78,9 +88,13 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
      * Method must be called before reuse this {@link PooledByteBufAllocator}
      */
     final void reuse(int maxCapacity) {
+        // 设置最大容量
         maxCapacity(maxCapacity);
+        // 重置refCnt属性
         resetRefCnt();
+        // 将readerIndex和writerIndex都置为0
         setIndex0(0, 0);
+        // 将mark标记置为0
         discardMarks();
     }
 

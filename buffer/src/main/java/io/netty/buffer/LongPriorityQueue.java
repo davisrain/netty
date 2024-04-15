@@ -40,10 +40,15 @@ final class LongPriorityQueue {
     }
 
     public void remove(long value) {
+        // 遍历所有存在的元素
         for (int i = 1; i <= size; i++) {
+            // 如果发现和value相等
             if (array[i] == value) {
+                // 将其设置为最后一个元素，并且将size--
                 array[i] = array[size--];
+                // 将i上浮
                 lift(i);
+                // 再将i下沉，维持堆的有序性
                 sink(i);
                 return;
             }
@@ -61,10 +66,15 @@ final class LongPriorityQueue {
         if (size == 0) {
             return NO_VALUE;
         }
+        // 获取第一个元素的值
         long val = array[1];
+        // 将第一个元素替换为最后一个元素
         array[1] = array[size];
+        // 将最后一个元素设置为0
         array[size] = 0;
+        // 将size - 1
         size--;
+        // 再将第1个元素下沉
         sink(1);
         return val;
     }
@@ -75,22 +85,30 @@ final class LongPriorityQueue {
 
     private void lift(int index) {
         int parentIndex;
+        // 当index大于1的时候 并且 当父节点的值大于index的值的时候
         while (index > 1 && subord(parentIndex = index >> 1, index)) {
+            // 将index和父节点交换
             swap(index, parentIndex);
+            // 将index设置为父节点，继续循环
             index = parentIndex;
         }
     }
 
     private void sink(int index) {
         int child;
+        // 当index的子节点小于等于size的时候
         while ((child = index << 1) <= size) {
+            // 并且另一个子节点也存在，并且另一个子节点更小，那么取另一个子节点的index
             if (child < size && subord(child, child + 1)) {
                 child++;
             }
+            // 如果自身已经不大于最小的那个子节点了，跳出循环
             if (!subord(index, child)) {
                 break;
             }
+            // 否则交换节点的值
             swap(index, child);
+            // 将index设置为子节点的下标，继续循环
             index = child;
         }
     }

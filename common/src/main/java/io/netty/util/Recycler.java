@@ -59,6 +59,7 @@ public abstract class Recycler<T> {
         // In the future, we might have different maxCapacity for different object types.
         // e.g. io.netty.recycler.maxCapacity.writeTask
         //      io.netty.recycler.maxCapacity.outboundBuffer
+        // 获取每个线程最大的容量，默认4kb
         int maxCapacityPerThread = SystemPropertyUtil.getInt("io.netty.recycler.maxCapacityPerThread",
                 SystemPropertyUtil.getInt("io.netty.recycler.maxCapacity", DEFAULT_INITIAL_MAX_CAPACITY_PER_THREAD));
         if (maxCapacityPerThread < 0) {
@@ -66,11 +67,13 @@ public abstract class Recycler<T> {
         }
 
         DEFAULT_MAX_CAPACITY_PER_THREAD = maxCapacityPerThread;
+        // 获取每个线程默认的queueChunkSize 默认为32
         DEFAULT_QUEUE_CHUNK_SIZE_PER_THREAD = SystemPropertyUtil.getInt("io.netty.recycler.chunkSize", 32);
 
         // By default, we allow one push to a Recycler for each 8th try on handles that were never recycled before.
         // This should help to slowly increase the capacity of the recycler while not be too sensitive to allocation
         // bursts.
+        //
         RATIO = max(0, SystemPropertyUtil.getInt("io.netty.recycler.ratio", 8));
 
         BLOCKING_POOL = SystemPropertyUtil.getBoolean("io.netty.recycler.blocking", false);
