@@ -823,10 +823,14 @@ public final class PlatformDependent {
      * {@link #allocateDirectNoCleaner(int)}.
      */
     public static void freeDirectNoCleaner(ByteBuffer buffer) {
+        // 判断USE_DIRECT_BUFFER_NO_CLEANER为true
         assert USE_DIRECT_BUFFER_NO_CLEANER;
 
+        // 获取buffer的capacity
         int capacity = buffer.capacity();
+        // 通过unsafe获取buffer的address，然后调用unsafe的freeMemory释放内存
         PlatformDependent0.freeMemory(PlatformDependent0.directBufferAddress(buffer));
+        // 将统计的直接内存分配数量 减去 capacity的值
         decrementMemoryCounter(capacity);
     }
 

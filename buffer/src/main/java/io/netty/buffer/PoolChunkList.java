@@ -131,8 +131,11 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
     }
 
     boolean free(PoolChunk<T> chunk, long handle, int normCapacity, ByteBuffer nioBuffer) {
+        // 调用chunk的free方法进行内存释放
         chunk.free(handle, normCapacity, nioBuffer);
+        // 当chunk的空闲内存 大于了 当前chunkList的空闲内存最大阈值，那么需要将其往chunkList链表前面移动
         if (chunk.freeBytes > freeMaxThreshold) {
+            // 将其从当前chunkList的chunk链表中删除
             remove(chunk);
             // Move the PoolChunk down the PoolChunkList linked-list.
             return move0(chunk);
@@ -143,12 +146,14 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
     private boolean move(PoolChunk<T> chunk) {
         assert chunk.usage() < maxUsage;
 
+        // 如果chunk的空闲内存 大于 当前chunkList的空闲内存最大阈值，往前移动
         if (chunk.freeBytes > freeMaxThreshold) {
             // Move the PoolChunk down the PoolChunkList linked-list.
             return move0(chunk);
         }
 
         // PoolChunk fits into this PoolChunkList, adding it here.
+        // 否则，将其添加进当前chunkList的chunk链表中
         add0(chunk);
         return true;
     }
@@ -158,9 +163,11 @@ final class PoolChunkList<T> implements PoolChunkListMetric {
      * {@link PoolChunkList} that has the correct minUsage / maxUsage in respect to {@link PoolChunk#usage()}.
      */
     private boolean move0(PoolChunk<T> chunk) {
+        // 如果前置的chunkList为null，
         if (prevList == null) {
             // There is no previous PoolChunkList so return false which result in having the PoolChunk destroyed and
             // all memory associated with the PoolChunk will be released.
+            // 判断当前chunk的使用率是否为0，如果是，返回false
             assert chunk.usage() == 0;
             return false;
         }

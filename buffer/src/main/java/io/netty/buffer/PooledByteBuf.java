@@ -43,6 +43,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @SuppressWarnings("unchecked")
     protected PooledByteBuf(Handle<? extends PooledByteBuf<T>> recyclerHandle, int maxCapacity) {
         super(maxCapacity);
+        // 持有recyclerHandle，决定了ByteBuf的回收策略
         this.recyclerHandle = (Handle<PooledByteBuf<T>>) recyclerHandle;
     }
 
@@ -182,20 +183,28 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     @Override
     protected final void deallocate() {
+        // 回收内存，如果handle大于等于0，说明是被初始化过的ByteBuf，里面已经持有了ByteBuffer
         if (handle >= 0) {
             final long handle = this.handle;
+            // 将自身的handle设置为-1
             this.handle = -1;
+            // 将memory设置为null
             memory = null;
+            // 将chunk记录的已分配内存 减去maxLength对应的值
             chunk.decrementPinnedMemory(maxLength);
+            // 调用arena的free方法 释放内存
             chunk.arena.free(chunk, tmpNioBuf, handle, maxLength, cache);
+            // 将chunk cache都设置为null
             tmpNioBuf = null;
             chunk = null;
             cache = null;
+            // 调用recycle方法，对自身进行回收
             recycle();
         }
     }
 
     private void recycle() {
+        // 调用recyclerHandle的recycle方法，根据不同的回收策略决定自身是否应该被回收到对象池
         recyclerHandle.recycle(this);
     }
 

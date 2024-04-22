@@ -275,18 +275,28 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
     }
 
     void free(PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, int normCapacity, PoolThreadCache cache) {
+        // 如果chunk不是池化的，比如分配的huge类型的内存
         if (chunk.unpooled) {
+            // 或者chunk分配的内存大小
             int size = chunk.chunkSize();
+            // 摧毁chunk，回收内存
             destroyChunk(chunk);
+            // 将统计的分配的huge类型的内存大小 减去 size
             activeBytesHuge.add(-size);
+            // 将回收huge类型的内存的次数 + 1
             deallocationsHuge.increment();
-        } else {
+        }
+        // 如果chunk是池化的，即分配的small normal类型的内存，会被池化在arena的chunkList中
+        else {
+            // 根据handle的isSubpage标识判断是什么类型的内存，即是small还是normal
             SizeClass sizeClass = sizeClass(handle);
+            // 如果cache不为null 并且 添加缓存成功的话，直接返回，不用释放这部分内存
             if (cache != null && cache.add(this, chunk, nioBuffer, handle, normCapacity, sizeClass)) {
                 // cached so not free it.
                 return;
             }
 
+            // 否则调用freeChunk进行内存的释放
             freeChunk(chunk, handle, normCapacity, sizeClass, nioBuffer, false);
         }
     }
@@ -302,6 +312,7 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
         try {
             // We only call this if freeChunk is not called because of the PoolThreadCache finalizer as otherwise this
             // may fail due lazy class-loading in for example tomcat.
+            // 如果finalizer为false，根据sizeClass的类型，将对应的deallocation指标+1
             if (!finalizer) {
                 switch (sizeClass) {
                     case Normal:
@@ -314,12 +325,16 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
                         throw new Error();
                 }
             }
+            // 调用chunk持有的chunkList的free方法，进行内存释放，并且返回是否chunk是否仍在chunkList链表中，如果不在的话，
+            // 说明chunk的usage为0，需要被摧毁
             destroyChunk = !chunk.parent.free(chunk, handle, normCapacity, nioBuffer);
         } finally {
             unlock();
         }
+        // 如果destroyChunk为true
         if (destroyChunk) {
             // destroyChunk not need to be called while holding the synchronized lock.
+            // 调用destroyChunk方法摧毁chunk
             destroyChunk(chunk);
         }
     }
@@ -726,7 +741,11 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
                         chunkSize, maxPageIdx);
             }
 
+            // 如果存在内存对齐，那么分配的时候先分配chunkSize + directMemoryCacheAlignment大小的直接内存
             final ByteBuffer base = allocateDirect(chunkSize + directMemoryCacheAlignment);
+            // 然后将内存进行对齐，使用ByteBuffer的alignSlice方法 或者 slice方法进行内存对齐，
+            // 本质是将ByteBuffer的address与directMemoryCacheAlignment进行对齐，
+            // 然后修改ByteBuffer中的position属性，然后进行内存截取
             final ByteBuffer memory = PlatformDependent.alignDirectBuffer(base, directMemoryCacheAlignment);
             return new PoolChunk<ByteBuffer>(this, base, memory, pageSize,
                     pageShifts, chunkSize, maxPageIdx);
@@ -759,7 +778,9 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
 
         @Override
         protected void destroyChunk(PoolChunk<ByteBuffer> chunk) {
+            // 如果directByteBuffer是使用的不带cleaner的构造方法创建的
             if (PlatformDependent.useDirectBufferNoCleaner()) {
+                // 那么调用freeDirectNoCleaner，将chunk持有的base对象传入，因为base才是最开始分配的直接内存映射，不包含内存对齐相关的逻辑的
                 PlatformDependent.freeDirectNoCleaner((ByteBuffer) chunk.base);
             } else {
                 PlatformDependent.freeDirectBuffer((ByteBuffer) chunk.base);

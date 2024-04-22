@@ -13,7 +13,7 @@ public class MaxDirectMemoryTest {
         // 从vm中获取
         System.out.println(VM.maxDirectMemory() / 1024 / 1024);
 
-        // 从jvm参数中获取
+        // 从jvm参数中获取 -XX:MaxDirectMemorySize
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         for (String inputArgument : runtimeMXBean.getInputArguments()) {
             System.out.println(inputArgument);

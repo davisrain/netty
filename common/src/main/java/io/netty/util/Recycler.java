@@ -66,6 +66,7 @@ public abstract class Recycler<T> {
             maxCapacityPerThread = DEFAULT_INITIAL_MAX_CAPACITY_PER_THREAD;
         }
 
+        // 设置默认的每个线程最大容量 默认为4 * 1024
         DEFAULT_MAX_CAPACITY_PER_THREAD = maxCapacityPerThread;
         // 获取每个线程默认的queueChunkSize 默认为32
         DEFAULT_QUEUE_CHUNK_SIZE_PER_THREAD = SystemPropertyUtil.getInt("io.netty.recycler.chunkSize", 32);
@@ -74,8 +75,10 @@ public abstract class Recycler<T> {
         // This should help to slowly increase the capacity of the recycler while not be too sensitive to allocation
         // bursts.
         //
+        // 默认的recyclerRatio为8
         RATIO = max(0, SystemPropertyUtil.getInt("io.netty.recycler.ratio", 8));
 
+        // recycler的blocking属性默认为false
         BLOCKING_POOL = SystemPropertyUtil.getBoolean("io.netty.recycler.blocking", false);
 
         if (logger.isDebugEnabled()) {
@@ -96,9 +99,12 @@ public abstract class Recycler<T> {
     private final int maxCapacityPerThread;
     private final int interval;
     private final int chunkSize;
+    // 每次创建Recycler实例的时候，都会创建一个FastThreadLocal对象，其中存储的是LocalPool类型的对象
     private final FastThreadLocal<LocalPool<T>> threadLocal = new FastThreadLocal<LocalPool<T>>() {
+
         @Override
         protected LocalPool<T> initialValue() {
+            // 将Recycler自身持有的maxCapacityPerThread interval 和chunkSize传入LocalPool的构造方法中
             return new LocalPool<T>(maxCapacityPerThread, interval, chunkSize);
         }
 
@@ -112,10 +118,12 @@ public abstract class Recycler<T> {
     };
 
     protected Recycler() {
+        // 将每个线程默认的最大容量传入 默认4096
         this(DEFAULT_MAX_CAPACITY_PER_THREAD);
     }
 
     protected Recycler(int maxCapacityPerThread) {
+        // 调用重载的构造方法，传入RATIO 默认为8 和 每个线程默认的queueChunkSize，默认为32
         this(maxCapacityPerThread, RATIO, DEFAULT_QUEUE_CHUNK_SIZE_PER_THREAD);
     }
 
@@ -152,33 +160,57 @@ public abstract class Recycler<T> {
     }
 
     protected Recycler(int maxCapacityPerThread, int ratio, int chunkSize) {
+        // 设置interval为0和ratio的最大值
+        // 默认为max(0, 8) = 8
         interval = max(0, ratio);
+        // 如果maxCapacityPerThread小于等于0，将chunkSize和自身的maxCapacityPerThread属性都置为0
         if (maxCapacityPerThread <= 0) {
             this.maxCapacityPerThread = 0;
             this.chunkSize = 0;
         } else {
+            // 否则将自身的maxCapacityPerThread属性设置为 maxCapacityPerThread参数和 4的最大值
+            // 默认为max(4, 4*1024) = 4096
             this.maxCapacityPerThread = max(4, maxCapacityPerThread);
+            // 将自身的chunkSize属性设置为 (chunkSize参数 和 maxCapacityPerThread / 2 的最小值) 和 2 的最大值
+            // 默认为max(2, min(32, 4*1024/2)) = 32
             this.chunkSize = max(2, min(chunkSize, this.maxCapacityPerThread >> 1));
         }
     }
 
     @SuppressWarnings("unchecked")
     public final T get() {
+        // 如果自身的maxCapacityPerThread为0，表示每个线程能缓存的最大容量为0，即localPool中的handle队列容量为0，
+        // 那么直接调用newObject方法，将NOOP_HANDLE作为handle传入，
+        // 该handle的recycle方法不会进行任何操作
         if (maxCapacityPerThread == 0) {
             return newObject((Handle<T>) NOOP_HANDLE);
         }
+        // 否则，获取fastThreadLocal中持有的LocalPool对象
         LocalPool<T> localPool = threadLocal.get();
+        // 调用localPool对象的claim方法获取localPool的队列里的第一个DefaultHandle对象，
+        // 并将其状态转换为claimed，表示这个handle已经被占用
         DefaultHandle<T> handle = localPool.claim();
         T obj;
+        // 如果handle为null的话，说明没有对象池里没有handle
         if (handle == null) {
+            // 通过localPool的newHandle方法去创建handle，
+            // 有几率会返回null，取决于ratio的值，
+            // ratio表示的就是每多少次调用newHandle能创建出一个不为null的handle对象。
+            // 这样可以降低对象池容量的增长速度
             handle = localPool.newHandle();
+            // 如果handle不为null
             if (handle != null) {
+                // 调用newObject方法，将handle传入
                 obj = newObject(handle);
+                // 将生成的对象设置进handle中缓存起来
                 handle.set(obj);
             } else {
+                // 如果handle仍为null，使用NOOP_HANDLE
                 obj = newObject((Handle<T>) NOOP_HANDLE);
             }
-        } else {
+        }
+        // 如果从对象池里获取的handle不为null的话，那么直接获取handle持有的对象进行复用
+        else {
             obj = handle.get();
         }
 
@@ -226,14 +258,19 @@ public abstract class Recycler<T> {
         private T value;
 
         DefaultHandle(LocalPool<T> localPool) {
+            // 持有创建自己的这个localPool
             this.localPool = localPool;
         }
 
         @Override
         public void recycle(Object object) {
+            // 如果传入的对象不等于自身持有的对象的话，报错
             if (object != value) {
                 throw new IllegalArgumentException("object does not belong to handle");
             }
+            // 调用创建自己的这个localPool的release方法
+            // 将自身的状态转换为available，表示是可以被使用的，
+            // 然后将自身添加进localPool的handles队列中，即将自身重新添加回对象池中，等待重复使用
             localPool.release(this);
         }
 
@@ -242,11 +279,14 @@ public abstract class Recycler<T> {
         }
 
         void set(T value) {
+            // 设置handle持有的value
             this.value = value;
         }
 
         void toClaimed() {
+            // 判断状态是否是available的
             assert state == STATE_AVAILABLE;
+            // 将状态转换为claimed
             state = STATE_CLAIMED;
         }
 
@@ -265,40 +305,56 @@ public abstract class Recycler<T> {
 
         @SuppressWarnings("unchecked")
         LocalPool(int maxCapacity, int ratioInterval, int chunkSize) {
+            // 设置自身的ratioInterval属性
             this.ratioInterval = ratioInterval;
+            // 如果BLOCKING_POOL属性为true的话，创建一个阻塞队列赋值给pooledHandles属性
             if (BLOCKING_POOL) {
                 pooledHandles = new BlockingMessageQueue<DefaultHandle<T>>(maxCapacity);
             } else {
+                // 否则创建一个mpsc队列赋值给pooledHandles
                 pooledHandles = (MessagePassingQueue<DefaultHandle<T>>) newMpscQueue(chunkSize, maxCapacity);
             }
+            // 设置ratioCounter属性
             ratioCounter = ratioInterval; // Start at interval so the first one will be recycled.
         }
 
         DefaultHandle<T> claim() {
+            // 获取pooledHandles队列
             MessagePassingQueue<DefaultHandle<T>> handles = pooledHandles;
+            // 如果队列为null，直接返回null
             if (handles == null) {
                 return null;
             }
+            // 获取队列中队首的handle
             DefaultHandle<T> handle = handles.relaxedPoll();
+            // 如果handle不为null，调用toClaimed方法进行声明
             if (null != handle) {
                 handle.toClaimed();
             }
+            // 返回handle
             return handle;
         }
 
         void release(DefaultHandle<T> handle) {
+            // 将handle的状态设置为available，表示是可用的
             handle.toAvailable();
+            // 获取localPool持有的handle队列
             MessagePassingQueue<DefaultHandle<T>> handles = pooledHandles;
+            // 如果队列不为null，将handle添加进队列中，即重新放回对象池中，等待重复使用
             if (handles != null) {
                 handles.relaxedOffer(handle);
             }
         }
 
         DefaultHandle<T> newHandle() {
+            // 先将ratioCounter自增1，然后判断ratioCounter是否大于了ratioInterval，如果是，
+            // 将ratioCounter置为0，创建一个DefaultHandle返回。
+            // 因此每ratioInterval次调用newHandle才会创建一个DefaultHandle对象
             if (++ratioCounter >= ratioInterval) {
                 ratioCounter = 0;
                 return new DefaultHandle<T>(this);
             }
+            // 如果自增之后的ratioCounter比interval小，直接返回null
             return null;
         }
     }

@@ -217,7 +217,8 @@ final class PoolChunk<T> implements PoolChunkMetric {
         runsAvailLock = new ReentrantLock();
         // 创建一个用于保存runsAvail的map
         runsAvailMap = new LongLongHashMap(-1);
-        // 创建一个PoolSubpage类型的数组，长度为chunkSize / pageSize
+        // 创建一个PoolSubpage类型的数组，长度为chunkSize / pageSize，
+        // 这样可以根据handle里面的runOffset直接找到handle所属的PoolSubpage对象
         subpages = new PoolSubpage[chunkSize >> pageShifts];
 
         //insert initial run, offset = 0, pages = chunkSize / pageSize
@@ -554,25 +555,36 @@ final class PoolChunk<T> implements PoolChunkMetric {
      * @param handle handle to free
      */
     void free(long handle, int normCapacity, ByteBuffer nioBuffer) {
+        // 根据handle获取到run中包含的pages，再根据pageShifts，得到runSize
         int runSize = runSize(pageShifts, handle);
+        // 根据handle判断normCapacity是否是subpage，如果是
         if (isSubpage(handle)) {
+            // 获取到normCapacity在sizeClasses中对应的sizeClass的index
             int sizeIdx = arena.size2SizeIdx(normCapacity);
+            // 获取arena中缓存的sizeIdx对应的PoolSubpage的链表头
             PoolSubpage<T> head = arena.findSubpagePoolHead(sizeIdx);
 
+            // 获取handle中保存的当前run对应所在chunk的页偏移量
             int sIdx = runOffset(handle);
+            // 然后找到chunk中缓存的PoolSubpage对象
             PoolSubpage<T> subpage = subpages[sIdx];
 
             // Obtain the head of the PoolSubPage pool that is owned by the PoolArena and synchronize on it.
             // This is need as we may add it back and so alter the linked-list structure.
+            // 对链表头节点加锁
             head.lock();
             try {
                 assert subpage != null && subpage.doNotDestroy;
+                // 调用subpage的free方法，根据handle计算出当前使用的elemSize的位置，明确到需要释放哪一段内存
+                // 返回subpage是否仍然被使用
                 if (subpage.free(head, bitmapIdx(handle))) {
                     //the subpage is still used, do not free it
+                    // 当subpage仍然被使用的时候，直接返回
                     return;
                 }
                 assert !subpage.doNotDestroy;
                 // Null out slot in the array as it was freed and we should not use it anymore.
+                // 当subpage没有再被使用的时候，将chunk中缓存的subpage也置为null
                 subpages[sIdx] = null;
             } finally {
                 head.unlock();
@@ -580,18 +592,24 @@ final class PoolChunk<T> implements PoolChunkMetric {
         }
 
         //start free run
+        // 开始释放run
         runsAvailLock.lock();
         try {
             // collapse continuous runs, successfully collapsed runs
             // will be removed from runsAvail and runsAvailMap
+            // 根据handle合并run，得到最终的runHandle
             long finalRun = collapseRuns(handle);
 
             //set run as not used
+            // 将runHandle的used标识设置为0
             finalRun &= ~(1L << IS_USED_SHIFT);
             //if it is a subpage, set it to run
+            // 将runHandle的subpage标识设置为0
             finalRun &= ~(1L << IS_SUBPAGE_SHIFT);
 
+            // 添加进可用的run列表中
             insertAvailRun(runOffset(finalRun), runPages(finalRun), finalRun);
+            // 将chunk的freeBytes加上runSize
             freeBytes += runSize;
         } finally {
             runsAvailLock.unlock();

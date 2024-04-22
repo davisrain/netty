@@ -27,6 +27,8 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 final class PooledUnsafeDirectByteBuf extends PooledByteBuf<ByteBuffer> {
+    // 创建一个线程独立的PooledUnsafeDirectByteBuf的对象池，每次从里面get到对象，
+    // 根据handle的行为来决定是否要回收并保存该对象
     private static final ObjectPool<PooledUnsafeDirectByteBuf> RECYCLER = ObjectPool.newPool(
             new ObjectCreator<PooledUnsafeDirectByteBuf>() {
         @Override

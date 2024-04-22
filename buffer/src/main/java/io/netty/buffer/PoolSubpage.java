@@ -134,38 +134,52 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
      *         {@code false} if this subpage is not used by its chunk and thus it's OK to be released.
      */
     boolean free(PoolSubpage<T> head, int bitmapIdx) {
+        // 如果elemSize为0，直接返回true
         if (elemSize == 0) {
             return true;
         }
+        // 根据bitmapIdx找到位图中的位置
         int q = bitmapIdx >>> 6;
         int r = bitmapIdx & 63;
+        // 判断对应位为1，表示是被占用的
         assert (bitmap[q] >>> r & 1) != 0;
+        // 将位图上对应的位设置为0
         bitmap[q] ^= 1L << r;
 
+        // 设置下一个可用的位置为刚才释放的位置
         setNextAvail(bitmapIdx);
 
+        // 将PoolSubpage里面的可分配的elemSize个数 + 1
+        // 如果之前可用数量为0，那么现在有可用空间了，因此需要添加进arena的对应sizeIdx的PoolSubpage的链表中
         if (numAvail ++ == 0) {
             addToPool(head);
             /* When maxNumElems == 1, the maximum numAvail is also 1.
              * Each of these PoolSubpages will go in here when they do free operation.
              * If they return true directly from here, then the rest of the code will be unreachable
              * and they will not actually be recycled. So return true only on maxNumElems > 1. */
+            // 当maxNumElems > 1的时候，直接返回true
             if (maxNumElems > 1) {
                 return true;
             }
         }
 
+        // 如果可用数量 和 最大的elem的数量不相等的时候，返回true
         if (numAvail != maxNumElems) {
             return true;
-        } else {
+        }
+        // 否则，当可用数量就等于最大的elem数量的时候，说明该PoolSubpage的内存被全部释放，没有任何占用
+        else {
             // Subpage not in use (numAvail == maxNumElems)
+            // 如果prev等于next的时候，说明当前的PoolSubpage是链表里面唯一一个，那么直接返回true，不进行删除
             if (prev == next) {
                 // Do not remove if this subpage is the only one left in the pool.
                 return true;
             }
 
             // Remove this subpage from the pool if there are other subpages left in the pool.
+            // 将doNotDestroy设置为false
             doNotDestroy = false;
+            // 将其从链表里面删除，因为链表里面存在其他PoolSubpage可以使用，然后返回false
             removeFromPool();
             return false;
         }

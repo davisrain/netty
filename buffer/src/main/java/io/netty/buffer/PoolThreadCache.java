@@ -207,14 +207,19 @@ final class PoolThreadCache {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     boolean add(PoolArena<?> area, PoolChunk chunk, ByteBuffer nioBuffer,
                 long handle, int normCapacity, SizeClass sizeClass) {
+        // 获取size对应的sizeClass的index
         int sizeIdx = area.size2SizeIdx(normCapacity);
+        // 根据内存的类型获取arena对应的MemoryRegionCache
         MemoryRegionCache<?> cache = cache(area, sizeIdx, sizeClass);
+        // 如果cache为null，直接返回false
         if (cache == null) {
             return false;
         }
+        // 获取freed的值，如果是true的是，也直接返回false
         if (freed.get()) {
             return false;
         }
+        // 调用cache的add方法，将chunk和handle存入
         return cache.add(chunk, nioBuffer, handle, normCapacity);
     }
 
@@ -411,13 +416,17 @@ final class PoolThreadCache {
          */
         @SuppressWarnings("unchecked")
         public final boolean add(PoolChunk<T> chunk, ByteBuffer nioBuffer, long handle, int normCapacity) {
+            // 创建一个Entry用于保存chunk和handle以及normCapacity的信息
             Entry<T> entry = newEntry(chunk, nioBuffer, handle, normCapacity);
+            // 将entry入队，queue是有大小限制的，small类型的queue默认256长度，normal类型的queue默认64长度
             boolean queued = queue.offer(entry);
+            // 如果入队失败，调用entry的recycle方法进行回收
             if (!queued) {
                 // If it was not possible to cache the chunk, immediately recycle the entry
                 entry.recycle();
             }
 
+            // 返回是否入队成功
             return queued;
         }
 
@@ -433,6 +442,7 @@ final class PoolThreadCache {
             }
             // 否则调用initBuf方法
             initBuf(entry.chunk, entry.nioBuffer, entry.handle, buf, reqCapacity, threadCache);
+            // 调用entry的recycle方法将对象回收回对象池
             entry.recycle();
 
             // allocations is not thread-safe which is fine as this is only called from the same thread all time.
@@ -501,6 +511,7 @@ final class PoolThreadCache {
             int normCapacity;
 
             Entry(Handle<Entry<?>> recyclerHandle) {
+                // 持有回收handle，决定了entry的回收策略
                 this.recyclerHandle = recyclerHandle;
             }
 
@@ -508,17 +519,21 @@ final class PoolThreadCache {
                 chunk = null;
                 nioBuffer = null;
                 handle = -1;
+                // 调用回收策略进行回收
                 recyclerHandle.recycle(this);
             }
         }
 
         @SuppressWarnings("rawtypes")
         private static Entry newEntry(PoolChunk<?> chunk, ByteBuffer nioBuffer, long handle, int normCapacity) {
+            // 通过对象池去获取Entry对象
             Entry entry = RECYCLER.get();
+            // 将chunk nioBuffer handle和normCapacity设置进Entry中
             entry.chunk = chunk;
             entry.nioBuffer = nioBuffer;
             entry.handle = handle;
             entry.normCapacity = normCapacity;
+            // 然后返回
             return entry;
         }
 

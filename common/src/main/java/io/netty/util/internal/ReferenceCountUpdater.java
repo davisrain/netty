@@ -56,6 +56,7 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
     protected abstract long unsafeOffset();
 
     public final int initialValue() {
+        // 初始值为2
         return 2;
     }
 
