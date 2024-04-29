@@ -757,6 +757,8 @@ final class PlatformDependent0 {
     static void copyMemory(Object src, long srcOffset, Object dst, long dstOffset, long length) {
         // Manual safe-point polling is only needed prior Java9:
         // See https://bugs.openjdk.java.net/browse/JDK-8149596
+        // 当java版本小于等于8的时候，将复制内存分片进行，防止在大内存复制的时候安全点无法轮询。
+        // 分片大小默认为1mb
         if (javaVersion() <= 8) {
             copyMemoryWithSafePointPolling(src, srcOffset, dst, dstOffset, length);
         } else {

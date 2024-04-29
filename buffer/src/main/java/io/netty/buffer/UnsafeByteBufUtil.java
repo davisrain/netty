@@ -478,11 +478,14 @@ final class UnsafeByteBufUtil {
     }
 
     static void getBytes(AbstractByteBuf buf, long addr, int index, byte[] dst, int dstIndex, int length) {
+        // 检查index和length是否越界
         buf.checkIndex(index, length);
         checkNotNull(dst, "dst");
+        // 检查目标字节数组的index和length是否越界
         if (isOutOfBounds(dstIndex, length, dst.length)) {
             throw new IndexOutOfBoundsException("dstIndex: " + dstIndex);
         }
+        // 如果length不为0，进行内存复制操作
         if (length != 0) {
             PlatformDependent.copyMemory(addr, dst, dstIndex, length);
         }

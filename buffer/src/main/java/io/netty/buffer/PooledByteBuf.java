@@ -101,39 +101,55 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     @Override
     public final int capacity() {
+        // 返回ByteBuf的length作为capacity
         return length;
     }
 
     @Override
     public int maxFastWritableBytes() {
+        // 使用maxLength 和 maxCapacity的最小值 减去 writerIndex，表示能够写入的最大字节数
         return Math.min(maxLength, maxCapacity()) - writerIndex;
     }
 
     @Override
+    // 调整ByteBuf的capacity的方法
     public final ByteBuf capacity(int newCapacity) {
+        // 如果新的容量就等于length，直接返回
         if (newCapacity == length) {
             ensureAccessible();
             return this;
         }
+        // 检查新的容量不能比maxCapacity大
         checkNewCapacity(newCapacity);
+        // 如果chunk不是unpooled类型的
         if (!chunk.unpooled) {
             // If the request capacity does not require reallocation, just update the length of the memory.
+            // 如果新的容量大于了length
             if (newCapacity > length) {
+                // 判断是否小于maxLength，如果是，将length设置为新的容量
                 if (newCapacity <= maxLength) {
                     length = newCapacity;
                     return this;
                 }
-            } else if (newCapacity > maxLength >>> 1 &&
+                // 否则就要进行扩容
+            }
+            // 如果新的容量比length还小
+            // 判断新容量是否大于 maxLength/2 并且 (maxLength大于512 或者 新容量大于 maxLength - 16)
+            else if (newCapacity > maxLength >>> 1 &&
                     (maxLength > 512 || newCapacity > maxLength - 16)) {
                 // here newCapacity < length
+                // 将length调整为新的容量大小
                 length = newCapacity;
+                // 重新设置writerIndex 和 readerIndex的位置
                 trimIndicesToCapacity(newCapacity);
                 return this;
             }
         }
 
         // Reallocation required.
+        // 将chunk中统计的已分配的内存大小减去maxLength
         chunk.decrementPinnedMemory(maxLength);
+        // 然后重新进行分配，大小为新的容量
         chunk.arena.reallocate(this, newCapacity, true);
         return this;
     }
@@ -170,10 +186,14 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     }
 
     protected final ByteBuffer internalNioBuffer() {
+        // 获取ByteBuf持有的临时NioBuffer
         ByteBuffer tmpNioBuf = this.tmpNioBuf;
+        // 如果为null的话，调用newInternalNioBuffer，根据memory创建一个新的临时Buffer对象
         if (tmpNioBuf == null) {
             this.tmpNioBuf = tmpNioBuf = newInternalNioBuffer(memory);
-        } else {
+        }
+        // 如果不为null，将buffer clear
+        else {
             tmpNioBuf.clear();
         }
         return tmpNioBuf;
@@ -209,13 +229,18 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     }
 
     protected final int idx(int index) {
+        // 将offset + index返回
         return offset + index;
     }
 
     final ByteBuffer _internalNioBuffer(int index, int length, boolean duplicate) {
+        // 将index加上offset
         index = idx(index);
+        // 根据是否需要复制，决定是否创建一个新的ByteBuffer
         ByteBuffer buffer = duplicate ? newInternalNioBuffer(memory) : internalNioBuffer();
+        // 将buffer的limit限制为index + length的位置，然后将position设置为index的位置
         buffer.limit(index + length).position(index);
+        // 返回ByteBuffer
         return buffer;
     }
 
@@ -226,7 +251,9 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
 
     @Override
     public final ByteBuffer internalNioBuffer(int index, int length) {
+        // 检查index和length
         checkIndex(index, length);
+        // 获取ByteBuf内部持有的nio的ByteBuffer对象的复制，然后将position设置为offset+index，limit设置为position+length
         return _internalNioBuffer(index, length, false);
     }
 
@@ -279,6 +306,7 @@ abstract class PooledByteBuf<T> extends AbstractReferenceCountedByteBuf {
     @Override
     public final int setBytes(int index, ScatteringByteChannel in, int length) throws IOException {
         try {
+            // 调用channel的read方法，获取ByteBuf自身持有的nio的ByteBuffer传入，并且设置写入ByteBuffer的位置index和长度length
             return in.read(internalNioBuffer(index, length));
         } catch (ClosedChannelException ignored) {
             return -1;

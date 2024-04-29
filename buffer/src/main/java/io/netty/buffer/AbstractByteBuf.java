@@ -176,11 +176,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     @Override
     public int readableBytes() {
+        // 可以读取的字节数等于writerIndex - readerIndex
         return writerIndex - readerIndex;
     }
 
     @Override
     public int writableBytes() {
+        // 获取ByteBuf的capacity 减去 writerIndex的值，初始化状态writerIndex为0
         return capacity() - writerIndex;
     }
 
@@ -271,7 +273,9 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     // Called after a capacity reduction
     protected final void trimIndicesToCapacity(int newCapacity) {
+        // 如果writerIndex大于了新容量
         if (writerIndex() > newCapacity) {
+            // 将readerIndex 和 writerIndex都设置为不超过新容量的位置
             setIndex0(Math.min(readerIndex(), newCapacity), newCapacity);
         }
     }
@@ -283,13 +287,20 @@ public abstract class AbstractByteBuf extends ByteBuf {
     }
 
     final void ensureWritable0(int minWritableBytes) {
+        // 获取ByteBuf的writerIndex
         final int writerIndex = writerIndex();
+        // 将writerIndex + minWritableBytes，计算出写完成后ByteBuf的目标容量
         final int targetCapacity = writerIndex + minWritableBytes;
         // using non-short-circuit & to reduce branching - this is a hot path and targetCapacity should rarely overflow
+        // 如果目标容量是大于等于0 并且 小于等于ByteBuf的容量的，说明不会出现溢出
         if (targetCapacity >= 0 & targetCapacity <= capacity()) {
+            // 判断ByteBuf是否是可访问的
             ensureAccessible();
+            // 返回
             return;
         }
+        // 如果checkBounds为true，默认为true，说明是需要检查边界的；
+        // 如果targetCapacity小于0 或者 大于了ByteBuf的最大容量，抛异常
         if (checkBounds && (targetCapacity < 0 || targetCapacity > maxCapacity)) {
             ensureAccessible();
             throw new IndexOutOfBoundsException(String.format(
@@ -298,8 +309,11 @@ public abstract class AbstractByteBuf extends ByteBuf {
         }
 
         // Normalize the target capacity to the power of 2.
+        // 获取可写入的最大字节数 maxLength - writerIndex
         final int fastWritable = maxFastWritableBytes();
+        // 如果fastWritable大于等于了 minWritableBytes， 那么将新的capacity等于writeIndex + fastWritable
         int newCapacity = fastWritable >= minWritableBytes ? writerIndex + fastWritable
+                // 否则调用ByteBuf持有的allocator的calculateNewCapacity方法，重新分配ByteBuf的容量
                 : alloc().calculateNewCapacity(targetCapacity, maxCapacity);
 
         // Adjust to the new capacity.
@@ -1129,11 +1143,16 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     @Override
     public int writeBytes(ScatteringByteChannel in, int length) throws IOException {
+        // 判断是否可以写入，即要写入的字节长度是否大于了ByteBuf的剩余容量
         ensureWritable(length);
+        // 调用setBytes，从channel中读取length长度的字节，并放入到ByteBuf中，返回写入的字节数
         int writtenBytes = setBytes(writerIndex, in, length);
+        // 如果写入的字节数大于0
         if (writtenBytes > 0) {
+            // 将writerIndex增加对应的字节数
             writerIndex += writtenBytes;
         }
+        // 返回写入的字节数
         return writtenBytes;
     }
 
@@ -1239,11 +1258,13 @@ public abstract class AbstractByteBuf extends ByteBuf {
 
     @Override
     public String toString(Charset charset) {
+        // 调用toString的重载方法，将readerIndex 和 可以读取的字节数(writerIndex - readerIndex)传入
         return toString(readerIndex, readableBytes(), charset);
     }
 
     @Override
     public String toString(int index, int length, Charset charset) {
+        // 调用ByteBufUtil的decode方法将ByteBuf中保存的字节解析为String
         return ByteBufUtil.decodeString(this, index, length, charset);
     }
 
@@ -1450,7 +1471,9 @@ public abstract class AbstractByteBuf extends ByteBuf {
      * Should be called by every method that tries to access the buffers content to check
      * if the buffer was released before.
      */
+    // 判断buffer的内容是否是可访问的
     protected final void ensureAccessible() {
+        // 如果checkAccessible是true 并且 判断是ByteBuf是不可访问的，抛异常
         if (checkAccessible && !isAccessible()) {
             throw new IllegalReferenceCountException(0);
         }

@@ -73,6 +73,7 @@ final class PooledUnsafeDirectByteBuf extends PooledByteBuf<ByteBuffer> {
 
     @Override
     protected ByteBuffer newInternalNioBuffer(ByteBuffer memory) {
+        // 调用ByteBuffer的duplicate进行复制，新的Buffer的内存地址同原本的共享，但是自身的position limit 等属性是独立的
         return memory.duplicate();
     }
 
@@ -134,6 +135,7 @@ final class PooledUnsafeDirectByteBuf extends PooledByteBuf<ByteBuffer> {
 
     @Override
     public ByteBuf getBytes(int index, byte[] dst, int dstIndex, int length) {
+        // 调用UnsafeByteBufUtil的getBytes方法将对应内存地址的length长度的数据 复制进dst字节数组中
         UnsafeByteBufUtil.getBytes(this, addr(index), index, dst, dstIndex, length);
         return this;
     }
@@ -250,6 +252,7 @@ final class PooledUnsafeDirectByteBuf extends PooledByteBuf<ByteBuffer> {
     }
 
     private long addr(int index) {
+        // 等于DirectedByteBuf所对应的直接内存的地址加上index
         return memoryAddress + index;
     }
 

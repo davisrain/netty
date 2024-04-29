@@ -114,6 +114,8 @@ public final class ByteBufUtil {
      * Allocates a new array if minLength > {@link ByteBufUtil#MAX_TL_ARRAY_LEN}
      */
     static byte[] threadLocalTempArray(int minLength) {
+        // 如果minLength小于等于最大的threadLocal数组长度，默认1024
+        // 那么从fastThreadLocal中获取，否则直接进行创建一个未初始化的字节数组
         return minLength <= MAX_TL_ARRAY_LEN ? BYTE_ARRAYS.get()
             : PlatformDependent.allocateUninitializedArray(minLength);
     }
@@ -1270,18 +1272,29 @@ public final class ByteBufUtil {
         final byte[] array;
         final int offset;
 
+        // 如果ByteBuf原本就是存在字节数组的
+        // 堆内存形式ByteBuf是存在的
+        // 直接内存形式的ByteBuf是不存在的
         if (src.hasArray()) {
+            // 获取字节数组，即直接返回ByteBuf保存的memory属性，HeapByteBuf内部会保存一个byte[]
             array = src.array();
+            // 然后获取到应该读取的字节偏移量 arrayOffset + readerIndex，其中arrayOffset也就是HeapByteBuf的offset字段
             offset = src.arrayOffset() + readerIndex;
         } else {
+            // 否则构建一个临时的threadLocal类型的数组，长度为传入的length
             array = threadLocalTempArray(len);
+            // offset为设置为0
             offset = 0;
+            // 将ByteBuf中readerIndex开始的length长度的字节复制到临时数组中
             src.getBytes(readerIndex, array, 0, len);
         }
+        // 如果编码类型是ascii
         if (CharsetUtil.US_ASCII.equals(charset)) {
             // Fast-path for US-ASCII which is used frequently.
+            // 通过字节数组构建String对象，并且指定高位为0，因为ascii码只有128位，即一个字节，那么char类型的高位字节永远为0
             return new String(array, 0, offset, len);
         }
+        // 通过字节数组构建String对象
         return new String(array, offset, len, charset);
     }
 

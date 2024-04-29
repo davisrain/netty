@@ -158,24 +158,37 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 do {
                     // 使用allocHandle的allocate方法，以allocator为参数，分配出一个ByteBuf
                     byteBuf = allocHandle.allocate(allocator);
+                    // 调用nioByteChannel的doReadBytes方法进行实际的读取操作，并且将ByteBuf作为参数传入，将读取的字节存储到ByteBuf中，
+                    // 返回读取的字节数量，然后设置进allocHandle的lastBytesRead中，表示上一次读取，读取了多少字节的数据
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
+                    // 如果allocHandle统计的上一次读取的字节数小于等于0，那么表示channel中已经没有东西可读了
                     if (allocHandle.lastBytesRead() <= 0) {
                         // nothing was read. release the buffer.
+                        // 没有东西读取到，调用byteBuf的release方法进行释放
                         byteBuf.release();
                         byteBuf = null;
+                        // 如果allocHandle统计到的上一次读取的字节数小于0，将close设置为true
                         close = allocHandle.lastBytesRead() < 0;
                         if (close) {
                             // There is nothing left to read as we received an EOF.
+                            // 将channel的readPending设置为fasle
                             readPending = false;
                         }
+                        // 跳出循环
                         break;
                     }
 
+                    // 将allocHandle中记录的totalMessages + 1
                     allocHandle.incMessagesRead(1);
+                    // 将自身的readPending属性设置为false
                     readPending = false;
+                    // 调用pipeline的fireChannelRead，将保存有从channel读取的内容的ByteBuf传入
                     pipeline.fireChannelRead(byteBuf);
+                    // 然后将ByteBuf置为null
                     byteBuf = null;
-                } while (allocHandle.continueReading());
+                }
+                // 根据allocHandle中的信息判断是否要继续循环读取channel中的内容
+                while (allocHandle.continueReading());
 
                 allocHandle.readComplete();
                 pipeline.fireChannelReadComplete();

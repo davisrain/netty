@@ -118,6 +118,8 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
             // This helps adjust more quickly when large amounts of data is pending and can avoid going back to
             // the selector to check for more data. Going back to the selector can add significant latency for large
             // data transfers.
+            // 如果读取的字节数量 正好等于 企图读取的字节数
+            // 那么调用record方法进行记录，并且判断下一次guess的时候是否应该增加猜测的size大小
             if (bytes == attemptedBytesRead()) {
                 record(bytes);
             }
@@ -131,17 +133,29 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
         }
 
         private void record(int actualReadBytes) {
+            // 如果实际读取的字节数 小于等于 index下一个位置的size
             if (actualReadBytes <= SIZE_TABLE[max(0, index - INDEX_DECREMENT)]) {
+                // 根据decreaseNow参数决定是否要现在进行index的递减
                 if (decreaseNow) {
+                    // 将index进行递减调整
                     index = max(index - INDEX_DECREMENT, minIndex);
+                    // 然后重新根据index计算出下一次接受的buffer大小
                     nextReceiveBufferSize = SIZE_TABLE[index];
+                    // 将decreaseNow设置为false
                     decreaseNow = false;
                 } else {
+                    // 将decreaseNow设置为true，下一次再触发外层if的时候，就会进行index的减少。
+                    // 因此是每满足2次，减少一次index
                     decreaseNow = true;
                 }
-            } else if (actualReadBytes >= nextReceiveBufferSize) {
+            }
+            // 如果实际读取的字节数大于等于 nextReceiveBufferSize
+            else if (actualReadBytes >= nextReceiveBufferSize) {
+                // 那么将index增加INDEX_INCREMENT，默认为4
                 index = min(index + INDEX_INCREMENT, maxIndex);
+                // 并且直接将nextReceiveBufferSize更新为新的index对应的size
                 nextReceiveBufferSize = SIZE_TABLE[index];
+                // 将decreaseNow设置为false
                 decreaseNow = false;
             }
         }

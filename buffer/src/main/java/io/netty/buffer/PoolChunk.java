@@ -615,34 +615,47 @@ final class PoolChunk<T> implements PoolChunkMetric {
             runsAvailLock.unlock();
         }
 
+        // 如果nioBuffer不为null 并且 cachedNioBuffers不为null 并且 缓存的buffer数量小于每个chunk最大的缓存buffer数量
         if (nioBuffer != null && cachedNioBuffers != null &&
             cachedNioBuffers.size() < PooledByteBufAllocator.DEFAULT_MAX_CACHED_BYTEBUFFERS_PER_CHUNK) {
+            // 将nioBuffer添加进cachedNioBuffers中进行缓存
             cachedNioBuffers.offer(nioBuffer);
         }
     }
 
     private long collapseRuns(long handle) {
+        // 合并handle前后的可用的run
         return collapseNext(collapsePast(handle));
     }
 
     private long collapsePast(long handle) {
         for (;;) {
+            // 获取runHandle的页偏移量
             int runOffset = runOffset(handle);
+            // 获取runHandle所包含的页数量
             int runPages = runPages(handle);
 
+            // 获取runOffset - 1对应的handle，即当前run前面的可用handle
             long pastRun = getAvailRunByOffset(runOffset - 1);
+            // 如果pastRun为-1的话，说明当前run前面的页也已经被占用，不是可用的，不需要合并，直接返回当前handle
             if (pastRun == -1) {
                 return handle;
             }
 
+            // 否则获取前一个可用run的offset pastOffset
             int pastOffset = runOffset(pastRun);
+            // 获取前一个可用run的pages pastPages
             int pastPages = runPages(pastRun);
 
             //is continuous
+            // 如果pastRun不等于当前的handle， 并且 pastOffset + pastPages 等于 当前handle的offset
             if (pastRun != handle && pastOffset + pastPages == runOffset) {
                 //remove past run
+                // 将前一个可用run删除
                 removeAvailRun(pastRun);
+                // 将前一个可用run和当前handle合并起来
                 handle = toRunHandle(pastOffset, pastPages + runPages, 0);
+                // 然后继续循环，进行合并操作，直到无法合并之后，返回handle
             } else {
                 return handle;
             }
@@ -651,22 +664,30 @@ final class PoolChunk<T> implements PoolChunkMetric {
 
     private long collapseNext(long handle) {
         for (;;) {
+            // 获取当前handle的runOffset以及所占有的pages
             int runOffset = runOffset(handle);
             int runPages = runPages(handle);
 
+            // 找到当前handle所包含的最后一个页的下一个位置所对应的可用的run
             long nextRun = getAvailRunByOffset(runOffset + runPages);
+            // 如果不存在，不用合并，直接返回handle
             if (nextRun == -1) {
                 return handle;
             }
 
+            // 否则获取到下一个可用run的offset以及包含的pages
             int nextOffset = runOffset(nextRun);
             int nextPages = runPages(nextRun);
 
             //is continuous
+            // 如果nextRun不等于handle 并且 runOffset + runPages 等于nextOffset，进行可用run的合并
             if (nextRun != handle && runOffset + runPages == nextOffset) {
                 //remove next run
+                // 删除nextRun
                 removeAvailRun(nextRun);
+                // 然后将当前run和nextRun的handle进行合并
                 handle = toRunHandle(runOffset, runPages + nextPages, 0);
+                // 继续循环合并操作，直到无法合并，返回handle
             } else {
                 return handle;
             }
