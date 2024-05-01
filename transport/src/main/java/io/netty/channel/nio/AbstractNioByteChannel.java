@@ -149,7 +149,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             final ByteBufAllocator allocator = config.getAllocator();
             // 根据config中的RecvByteBufAllocator获取对应的handle，这里获取到的默认是AdaptiveRecvByteBufAllocator.HandleImpl
             final RecvByteBufAllocator.Handle allocHandle = recvBufAllocHandle();
-            // 将config重新设置进allocHandle
+            // 将config重新设置进allocHandle，主要作用是将allocHandle中的totalMessages和totalReadBytes置为0
             allocHandle.reset(config);
 
             ByteBuf byteBuf = null;
@@ -182,15 +182,27 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                     allocHandle.incMessagesRead(1);
                     // 将自身的readPending属性设置为false
                     readPending = false;
-                    // 调用pipeline的fireChannelRead，将保存有从channel读取的内容的ByteBuf传入
+                    // 调用pipeline的fireChannelRead，触发pipeline中所有的channelHandler的channelRead方法，
+                    // 将保存有从channel读取的内容的ByteBuf传入
                     pipeline.fireChannelRead(byteBuf);
-                    // 然后将ByteBuf置为null
+                    // 然后将ByteBuf置为null，这里将引用直接置为null了，但ByteBuf里面持有了内存分配的chunk，
+                    // 以及chunk对应的ByteBuffer，以及分配的内存标识handle，如果不进行释放的话，任由垃圾回收器
+                    // 将ByteBuf回收了，那么它对应的这部分内存就没办法再被其他ByteBuf再使用了，会造成内存浪费。
+                    // 因此尽量在channelHandler的channelRead方法结束之后，显式的调用ByteBuf的release方法，
+                    // 然后通过调用deallocate方法将占用的内存释放掉。
+
+                    // update: 也可以在自定义的channelHandler的channelRead方法中，调用ctx的fireChannelRead方法，
+                    // 将channelRead方法传递下去，直到调用到pipeline中的tailContext的channelRead方法，该方法里面会
+                    // 对ByteBuf进行释放操作
                     byteBuf = null;
                 }
                 // 根据allocHandle中的信息判断是否要继续循环读取channel中的内容
                 while (allocHandle.continueReading());
 
+                // 调用allocHandle的readComplete方法，根据统计的总共读取字节数，判断是否需要对
+                // nextReceiveBufferSize进行调整，也就是调整下次分配的ByteBuf的容量大小
                 allocHandle.readComplete();
+                // 调用pipeline的fireChannelReadComplete方法触发所有持有的channelHandler的readComplete方法
                 pipeline.fireChannelReadComplete();
 
                 if (close) {

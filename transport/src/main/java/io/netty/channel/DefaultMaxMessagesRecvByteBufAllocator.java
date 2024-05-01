@@ -112,7 +112,10 @@ public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessa
         public void reset(ChannelConfig config) {
             // 设置自身的config
             this.config = config;
-            // 从外部Allocator类获取maxMessagePerRead参数，NioServerSocketChannel默认为16
+            // 从外部Allocator类获取maxMessagePerRead参数，
+            // NioServerSocketChannel和NioSocketChannel都默认为16，
+            // 因为创建recvByteBufAllocator的时候会从channel的metadata里面获取maxMessagesPerRead
+            // 设置进recvAllocator中，这两种chennel的metadata里面的maxMessagesPerRead都等于16
             maxMessagePerRead = maxMessagesPerRead();
             // 将totalMessages和totalBytesRead都设置为0
             totalMessages = totalBytesRead = 0;

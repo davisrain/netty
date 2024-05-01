@@ -24,11 +24,14 @@ import io.netty.util.internal.ReferenceCountUpdater;
  * Abstract base class for {@link ByteBuf} implementations that count references.
  */
 public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
+    // 通过unsafe获取到refCnt这个属性在相对于对象在内存中的起始位置的偏移量
     private static final long REFCNT_FIELD_OFFSET =
             ReferenceCountUpdater.getUnsafeOffset(AbstractReferenceCountedByteBuf.class, "refCnt");
+    // 针对AbstractReferenceCountedByteBuf对象的refCnt字段创建一个atomic的updater对象，用于cas更新该属性的值
     private static final AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> AIF_UPDATER =
             AtomicIntegerFieldUpdater.newUpdater(AbstractReferenceCountedByteBuf.class, "refCnt");
 
+    // 创建一个ReferenceCountUpdater对象，用于更新refCnt属性
     private static final ReferenceCountUpdater<AbstractReferenceCountedByteBuf> updater =
             new ReferenceCountUpdater<AbstractReferenceCountedByteBuf>() {
         @Override
@@ -55,6 +58,8 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     boolean isAccessible() {
         // Try to do non-volatile read for performance as the ensureAccessible() is racy anyway and only provide
         // a best-effort guard.
+        // 不进行volatile方式的读取，为了性能，读取当前对象中refCnt字段的值，并判断是否是live的。
+        // 如果refCnt是偶数，代表是live的，如果是奇数，代表是已经被释放的
         return updater.isLiveNonVolatile(this);
     }
 
@@ -94,11 +99,15 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     @Override
     public ByteBuf touch(Object hint) {
+        // 直接返回this，不做其他操作
         return this;
     }
 
     @Override
     public boolean release() {
+        // 调用ReferenceCountUpdater的release方法对当前ByteBuf进行释放，
+        // 如果完全释放，即refCnt字段变为了奇数，返回true，否则返回false。
+        // 根据返回结果去调用handleRelease方法
         return handleRelease(updater.release(this));
     }
 
@@ -108,9 +117,12 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
     }
 
     private boolean handleRelease(boolean result) {
+        // 如果释放结果为true
         if (result) {
+            // 调用deallocate方法，将对应的内存块也释放
             deallocate();
         }
+        // 返回释放结果
         return result;
     }
 

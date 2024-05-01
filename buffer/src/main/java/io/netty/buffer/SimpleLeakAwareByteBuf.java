@@ -33,8 +33,11 @@ class SimpleLeakAwareByteBuf extends WrappedByteBuf {
     final ResourceLeakTracker<ByteBuf> leak;
 
     SimpleLeakAwareByteBuf(ByteBuf wrapped, ByteBuf trackedByteBuf, ResourceLeakTracker<ByteBuf> leak) {
+        // 将被包装的原始ByteBuf给父类WrappedByteBuf的buf属性持有
         super(wrapped);
+        // 将被追踪的ByteBuf赋值给trckedByteBuf属性
         this.trackedByteBuf = ObjectUtil.checkNotNull(trackedByteBuf, "trackedByteBuf");
+        // 将tracker赋值给leak属性
         this.leak = ObjectUtil.checkNotNull(leak, "leak");
     }
 

@@ -75,6 +75,7 @@ public final class ReferenceCountUtil {
      */
     @SuppressWarnings("unchecked")
     public static <T> T touch(T msg, Object hint) {
+        // 如果msg是ReferenceCounted类型的，调用其touch方法
         if (msg instanceof ReferenceCounted) {
             return (T) ((ReferenceCounted) msg).touch(hint);
         }

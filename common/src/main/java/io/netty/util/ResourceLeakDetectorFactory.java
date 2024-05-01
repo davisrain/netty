@@ -102,14 +102,18 @@ public abstract class ResourceLeakDetectorFactory {
         DefaultResourceLeakDetectorFactory() {
             String customLeakDetector;
             try {
+                // 获取系统变量中配置的自定义的资源泄漏检测器
                 customLeakDetector = SystemPropertyUtil.get("io.netty.customResourceLeakDetector");
             } catch (Throwable cause) {
                 logger.error("Could not access System property: io.netty.customResourceLeakDetector", cause);
                 customLeakDetector = null;
             }
+            // 如果自定义的泄漏检测器为null
             if (customLeakDetector == null) {
+                // 将obsoleteCustomClassConstructor 和 customClassConstructor 都置为null
                 obsoleteCustomClassConstructor = customClassConstructor = null;
             } else {
+                // 否则解析类名 获取类对象 然后获取对应的构造器
                 obsoleteCustomClassConstructor = obsoleteCustomClassConstructor(customLeakDetector);
                 customClassConstructor = customClassConstructor(customLeakDetector);
             }
@@ -177,8 +181,10 @@ public abstract class ResourceLeakDetectorFactory {
 
         @Override
         public <T> ResourceLeakDetector<T> newResourceLeakDetector(Class<T> resource, int samplingInterval) {
+            // 如果自定义的构造器不为null的话
             if (customClassConstructor != null) {
                 try {
+                    // 调用构造器创建对应的ResourceLeadDetector实例
                     @SuppressWarnings("unchecked")
                     ResourceLeakDetector<T> leakDetector =
                             (ResourceLeakDetector<T>) customClassConstructor.newInstance(resource, samplingInterval);
@@ -192,6 +198,7 @@ public abstract class ResourceLeakDetectorFactory {
                 }
             }
 
+            // 否则，直接创建原始的ResourceLeadDetector实例
             ResourceLeakDetector<T> resourceLeakDetector = new ResourceLeakDetector<T>(resource, samplingInterval);
             logger.debug("Loaded default ResourceLeakDetector: {}", resourceLeakDetector);
             return resourceLeakDetector;

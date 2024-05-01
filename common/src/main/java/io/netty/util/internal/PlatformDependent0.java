@@ -340,6 +340,7 @@ final class PlatformDependent0 {
             // 将directBufferConstructor赋值给DIRECT_BUFFER_CONSTRUCTOR
             DIRECT_BUFFER_CONSTRUCTOR = directBufferConstructor;
             ADDRESS_FIELD_OFFSET = objectFieldOffset(addressField);
+            // 通过unsafe获取byte数组的基础偏移量
             BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
             INT_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(int[].class);
             INT_ARRAY_INDEX_SCALE = UNSAFE.arrayIndexScale(int[].class);
@@ -431,6 +432,7 @@ final class PlatformDependent0 {
                         @Override
                         public Object run() {
                             try {
+                                // 获取unsafe中的allocateUninitializedArray方法，该方法是用于分配未初始化数组的
                                 return finalInternalUnsafe.getClass().getDeclaredMethod(
                                         "allocateUninitializedArray", Class.class, int.class);
                             } catch (NoSuchMethodException e) {

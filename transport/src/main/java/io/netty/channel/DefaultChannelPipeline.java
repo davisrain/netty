@@ -67,6 +67,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     private final Channel channel;
     private final ChannelFuture succeededFuture;
     private final VoidChannelPromise voidPromise;
+    // 自身的touch属性取决于资源泄漏检测器是否enabled
     private final boolean touch = ResourceLeakDetector.isEnabled();
 
     private Map<EventExecutorGroup, EventExecutor> childExecutors;
@@ -1229,6 +1230,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                     "Discarded inbound message {} that reached at the tail of the pipeline. " +
                             "Please check your pipeline configuration.", msg);
         } finally {
+            // 最终会调用ReferenceCountUtil的release方法，如果msg是ReferenceCounted类型的，会进行release操作
             ReferenceCountUtil.release(msg);
         }
     }
@@ -1339,6 +1341,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            // 调用onUnhandledInboundMessage方法，处理未处理的inbound类型的msg
             onUnhandledInboundMessage(ctx, msg);
         }
 

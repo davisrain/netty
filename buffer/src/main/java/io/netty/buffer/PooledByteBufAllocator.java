@@ -469,6 +469,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
                     new UnpooledDirectByteBuf(this, initialCapacity, maxCapacity);
         }
 
+        // 将通过arena创建出来的ByteBuf进行包装，添加leadAware的能力
         return toLeakAwareBuffer(buf);
     }
 
@@ -597,7 +598,9 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
                     executor != null) {
                 // 创建一个PoolThreadCache作为分配的内存的缓存
                 final PoolThreadCache cache = new PoolThreadCache(
+                                                // 默认256      // 默认64
                         heapArena, directArena, smallCacheSize, normalCacheSize,
+                        // 默认 32 * 1024                    // 默认8192
                         DEFAULT_MAX_CACHED_BUFFER_CAPACITY, DEFAULT_CACHE_TRIM_INTERVAL);
 
                 // 如果DEFAULT_CACHE_TRIM_INTERVAL_MILLIS大于0，创建一个定时任务，定时trim缓存

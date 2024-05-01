@@ -102,28 +102,36 @@ public class ResourceLeakDetector<T> {
 
     static {
         final boolean disabled;
+        // 如果io.netty.noResourceLeakDetection环境属性不为null，获取属性对应的value设置给disabled变量，默认为false
         if (SystemPropertyUtil.get("io.netty.noResourceLeakDetection") != null) {
             disabled = SystemPropertyUtil.getBoolean("io.netty.noResourceLeakDetection", false);
             logger.debug("-Dio.netty.noResourceLeakDetection: {}", disabled);
             logger.warn(
                     "-Dio.netty.noResourceLeakDetection is deprecated. Use '-D{}={}' instead.",
                     PROP_LEVEL, DEFAULT_LEVEL.name().toLowerCase());
-        } else {
+        }
+        // 如果为null，将disabled设置为false
+        else {
             disabled = false;
         }
 
+        // 默认的级别 根据disabled的值，设置为DISABLED 或者 DEFAULT_LEVEL = SIMPLE
         Level defaultLevel = disabled? Level.DISABLED : DEFAULT_LEVEL;
 
         // First read old property name
+        // 获取环境变量中配置的资源泄漏检测级别
         String levelStr = SystemPropertyUtil.get(PROP_LEVEL_OLD, defaultLevel.name());
 
         // If new property name is present, use it
         levelStr = SystemPropertyUtil.get(PROP_LEVEL, levelStr);
         Level level = Level.parseLevel(levelStr);
 
+        // 设置targetRecords的值，默认为4
         TARGET_RECORDS = SystemPropertyUtil.getInt(PROP_TARGET_RECORDS, DEFAULT_TARGET_RECORDS);
+        // 设置samplingInterval，默认为128
         SAMPLING_INTERVAL = SystemPropertyUtil.getInt(PROP_SAMPLING_INTERVAL, DEFAULT_SAMPLING_INTERVAL);
 
+        // 将资源泄漏检测级别设置到ResourceLeakDetector的静态变量中
         ResourceLeakDetector.level = level;
         if (logger.isDebugEnabled()) {
             logger.debug("-D{}: {}", PROP_LEVEL, level.name().toLowerCase());
@@ -143,6 +151,7 @@ public class ResourceLeakDetector<T> {
      * Returns {@code true} if resource leak detection is enabled.
      */
     public static boolean isEnabled() {
+        // 如果资源泄漏检测级别大于DISABLED，表明是开启的，默认为SIMPLE级别
         return getLevel().ordinal() > Level.DISABLED.ordinal();
     }
 
@@ -247,19 +256,30 @@ public class ResourceLeakDetector<T> {
 
     @SuppressWarnings("unchecked")
     private DefaultResourceLeak track0(T obj) {
+        // 首先判断ResourceLeakDetector的级别，如果是DISABLED的，直接返回null
         Level level = ResourceLeakDetector.level;
         if (level == Level.DISABLED) {
             return null;
         }
 
+        // 如果等级是低于PARANOID的
         if (level.ordinal() < Level.PARANOID.ordinal()) {
+            // 获取0到samplingInterval之间的一个随机值，如果等于0的话
+            // 因此并不是每次都会创建出对应的tracker对象的，samplingInterval的作用就是如此，
+            // 平均情况每samplingInterval次才会创建一个tracker对象
             if ((PlatformDependent.threadLocalRandom().nextInt(samplingInterval)) == 0) {
+                // 调用reportLead方法
                 reportLeak();
+                // 创建一个DefaultResourceLeak对象返回
                 return new DefaultResourceLeak(obj, refQueue, allLeaks, getInitialHint(resourceType));
             }
+            // 否则返回null
             return null;
         }
+        // 如果等级等于PARANOID，samplingInterval不起作用，每次都会创建tracker对象
+        // 调用reportLeak方法
         reportLeak();
+        // 然后创建一个DefaultResourceLead对象返回
         return new DefaultResourceLeak(obj, refQueue, allLeaks, getInitialHint(resourceType));
     }
 
@@ -355,12 +375,14 @@ public class ResourceLeakDetector<T> {
     private static final class DefaultResourceLeak<T>
             extends WeakReference<Object> implements ResourceLeakTracker<T>, ResourceLeak {
 
+        // 创建一个AtomicReferenceFieldUpdater对象，用于更新自身的head属性
         @SuppressWarnings("unchecked") // generics and updaters do not mix.
         private static final AtomicReferenceFieldUpdater<DefaultResourceLeak<?>, TraceRecord> headUpdater =
                 (AtomicReferenceFieldUpdater)
                         AtomicReferenceFieldUpdater.newUpdater(DefaultResourceLeak.class, TraceRecord.class, "head");
 
         @SuppressWarnings("unchecked") // generics and updaters do not mix.
+        // 创建droppedRecords属性的AtomicIntegerFieldUpdater对象
         private static final AtomicIntegerFieldUpdater<DefaultResourceLeak<?>> droppedRecordsUpdater =
                 (AtomicIntegerFieldUpdater)
                         AtomicIntegerFieldUpdater.newUpdater(DefaultResourceLeak.class, "droppedRecords");
@@ -378,6 +400,7 @@ public class ResourceLeakDetector<T> {
                 ReferenceQueue<Object> refQueue,
                 Set<DefaultResourceLeak<?>> allLeaks,
                 Object initialHint) {
+            // 将referent和refQueue传入父类构造器中，父类是弱引用
             super(referent, refQueue);
 
             assert referent != null;
@@ -385,11 +408,16 @@ public class ResourceLeakDetector<T> {
             // Store the hash of the tracked object to later assert it in the close(...) method.
             // It's important that we not store a reference to the referent as this would disallow it from
             // be collected via the WeakReference.
+            // 计算referent的一致性哈希，将其设置为trackedHash属性
             trackedHash = System.identityHashCode(referent);
+            // 将自身添加到allLeaks这个set中
             allLeaks.add(this);
             // Create a new Record so we always have the creation stacktrace included.
+            // 将自身的head设置为新创建的TraceRecord对象，如果initialHint不为null，会被添加进TraceRecord中。
+            // TraceRecord是一个Throwable类型的对象
             headUpdater.set(this, initialHint == null ?
                     new TraceRecord(TraceRecord.BOTTOM) : new TraceRecord(TraceRecord.BOTTOM, initialHint));
+            // 将allLeaks赋值给自身属性持有
             this.allLeaks = allLeaks;
         }
 

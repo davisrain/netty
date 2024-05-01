@@ -162,6 +162,7 @@ public class AdaptiveRecvByteBufAllocator extends DefaultMaxMessagesRecvByteBufA
 
         @Override
         public void readComplete() {
+            // 将总共读取的字节数传入record方法，判断是否需要对nextReceiveBufferSize进行调整
             record(totalBytesRead());
         }
     }

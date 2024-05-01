@@ -65,6 +65,7 @@ public abstract class AbstractByteBuf extends ByteBuf {
         }
     }
 
+    // 创建一个ResourceLeakDetector给静态变量持有
     static final ResourceLeakDetector<ByteBuf> leakDetector =
             ResourceLeakDetectorFactory.instance().newResourceLeakDetector(ByteBuf.class);
 

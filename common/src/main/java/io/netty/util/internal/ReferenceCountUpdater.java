@@ -81,16 +81,20 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
      * Like {@link #realRefCnt(int)} but throws if refCnt == 0
      */
     private static int toLiveRealRefCnt(int rawCnt, int decrement) {
+        // 如果rawCnt是偶数的话，将其右移1位，即除以2
         if (rawCnt == 2 || rawCnt == 4 || (rawCnt & 1) == 0) {
             return rawCnt >>> 1;
         }
         // odd rawCnt => already deallocated
+        // 如果发现rawCnt已经是奇数了，说明已经释放过了，报错
         throw new IllegalReferenceCountException(0, -decrement);
     }
 
     private int nonVolatileRawCnt(T instance) {
         // TODO: Once we compile against later versions of Java we can replace the Unsafe usage here by varhandles.
+        // 获取refCnt在对象中的内存偏移量
         final long offset = unsafeOffset();
+        // 如果内存偏移量不等于-1，使用unsafe进行读取，否则使用atomicUpdater进行读取
         return offset != -1 ? PlatformDependent.getInt(instance, offset) : updater().get(instance);
     }
 
@@ -99,10 +103,13 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
     }
 
     public final boolean isLiveNonVolatile(T instance) {
+        // 获取要读取的属性在对象中的内存偏移量
         final long offset = unsafeOffset();
+        // 如果偏移量不为-1的话，使用unsafe进行读取，否则使用atomicUpdater进行读取
         final int rawCnt = offset != -1 ? PlatformDependent.getInt(instance, offset) : updater().get(instance);
 
         // The "real" ref count is > 0 if the rawCnt is even.
+        // 如果rawCnt是偶数，返回true
         return rawCnt == 2 || rawCnt == 4 || rawCnt == 6 || rawCnt == 8 || (rawCnt & 1) == 0;
     }
 
@@ -146,8 +153,13 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
         return instance;
     }
 
+    // 该方法返回的是instance有没有被真正的释放，即refCnt属性是否被更新为奇数了
     public final boolean release(T instance) {
+        // 读取instance中对应的refCnt的值，不通过volatile的形式
         int rawCnt = nonVolatileRawCnt(instance);
+        // 如果读取到的refCnt的值为2的话，调用tryFinalRelease方法，进行最终的释放，如果释放失败的话，进行重试，尝试减少1个真实的refCnt，
+        // 每个真实的refCnt对应2倍的rawRefCnt，其中refCnt字段保存的rawRefCnt，所以都是偶数
+        // 否则，进行非最终的释放，减少一个真实的refCnt，即2个rawRefCnt，也就是将refCnt属性 - 2
         return rawCnt == 2 ? tryFinalRelease0(instance, 2) || retryRelease0(instance, 1)
                 : nonFinalRelease0(instance, 1, rawCnt, toLiveRealRefCnt(rawCnt, 1));
     }
@@ -160,6 +172,7 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
     }
 
     private boolean tryFinalRelease0(T instance, int expectRawCnt) {
+        // 将refCnt通过cas替换为1
         return updater().compareAndSet(instance, expectRawCnt, 1); // any odd number will work
     }
 
@@ -174,19 +187,30 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
 
     private boolean retryRelease0(T instance, int decrement) {
         for (;;) {
+            // 获取当前refCnt的值 获取真实refCnt的值，真实refCnt的值等于rawCnt >> 1
             int rawCnt = updater().get(instance), realCnt = toLiveRealRefCnt(rawCnt, decrement);
+            // 如果要减少的数量 等于 真实的refCnt的值
             if (decrement == realCnt) {
+                // 尝试使用cas将rawCnt替换为1，表示释放
                 if (tryFinalRelease0(instance, rawCnt)) {
+                    // 返回true，表示被最终释放
                     return true;
                 }
-            } else if (decrement < realCnt) {
+            }
+            // 如果要减少的数量 小于 真实的refCnt的值
+            else if (decrement < realCnt) {
                 // all changes to the raw count are 2x the "real" change
+                // 通过cas将rawCnt替换为 rawCnt - 2 * decrement的值，所有的raw count的变动都是真实变动的2倍
                 if (updater().compareAndSet(instance, rawCnt, rawCnt - (decrement << 1))) {
+                    // 然后返回false，表示没有被最终释放
                     return false;
                 }
-            } else {
+            }
+            // 其他情况报错
+            else {
                 throw new IllegalReferenceCountException(realCnt, -decrement);
             }
+            // 当前线程让出cpu，之后再进行循环
             Thread.yield(); // this benefits throughput under high contention
         }
     }

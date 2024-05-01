@@ -95,6 +95,7 @@ public final class PlatformDependent {
     private static final int MIN_MAX_MPSC_CAPACITY =  MPSC_CHUNK_SIZE * 2;
     private static final int MAX_ALLOWED_MPSC_CAPACITY = Pow2.MAX_POW2;
 
+    // 计算出字节数组的实际内容相对于数组对象的内存偏移量，比如实际的数据前面会存在对象头，对象头有包含markword和类型指针以及数组的长度
     private static final long BYTE_ARRAY_BASE_OFFSET = byteArrayBaseOffset0();
 
     private static final File TMPDIR = tmpdir0();
@@ -118,6 +119,7 @@ public final class PlatformDependent {
     private static final long DIRECT_MEMORY_LIMIT;
     private static final ThreadLocalRandomProvider RANDOM_PROVIDER;
     private static final Cleaner CLEANER;
+    // 未初始化的数组分配阈值
     private static final int UNINITIALIZED_ARRAY_ALLOCATION_THRESHOLD;
     // For specifications, see https://www.freedesktop.org/software/systemd/man/os-release.html
     private static final String[] OS_RELEASE_FILES = {"/etc/os-release", "/usr/lib/os-release"};
@@ -189,8 +191,10 @@ public final class PlatformDependent {
         // 将DIRECT_MEMORY_LIMIT设置为maxDirectMemory，如果maxDirectMemory为0，使用jvm的最大直接内存
         DIRECT_MEMORY_LIMIT = maxDirectMemory >= 1 ? maxDirectMemory : MAX_DIRECT_MEMORY;
 
+        // 未初始化的数组分配阈值 默认为1024
         int tryAllocateUninitializedArray =
                 SystemPropertyUtil.getInt("io.netty.uninitializedArrayAllocationThreshold", 1024);
+        // 如果java版本大于9，并且存在分配数组的方法，那么使用tryAllocateUninitializedArray，否则使用-1
         UNINITIALIZED_ARRAY_ALLOCATION_THRESHOLD = javaVersion() >= 9 && PlatformDependent0.hasAllocateArrayMethod() ?
                 tryAllocateUninitializedArray : -1;
         logger.debug("-Dio.netty.uninitializedArrayAllocationThreshold: {}", UNINITIALIZED_ARRAY_ALLOCATION_THRESHOLD);
@@ -337,6 +341,8 @@ public final class PlatformDependent {
     }
 
     public static byte[] allocateUninitializedArray(int size) {
+        // 如果UNINITIALIZED_ARRAY_ALLOCATION_THRESHOLD小于0 或者 大于size，那么直接通过new创建byte数组即可，否则，
+        // 由于size超过了阈值，那么需要去创建未初始化的数组，调用unsafe的allocateUninitializedArray方法进行创建
         return UNINITIALIZED_ARRAY_ALLOCATION_THRESHOLD < 0 || UNINITIALIZED_ARRAY_ALLOCATION_THRESHOLD > size ?
                 new byte[size] : PlatformDependent0.allocateUninitializedArray(size);
     }
@@ -1449,9 +1455,11 @@ public final class PlatformDependent {
     }
 
     private static long byteArrayBaseOffset0() {
+        // 如果不存在unsafe对象的话，返回-1
         if (!hasUnsafe()) {
             return -1;
         }
+        // 否则调用PlatformDependent0的byteArrayBaseOffset方法
         return PlatformDependent0.byteArrayBaseOffset();
     }
 
