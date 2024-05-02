@@ -34,6 +34,7 @@ public abstract class AbstractByteBufAllocator implements ByteBufAllocator {
     static final int CALCULATE_THRESHOLD = 1048576 * 4; // 4 MiB page
 
     static {
+        // 将toLeakAwareBuffer方法添加进resourceLeakDetector的exclusionsMethod中，这样在资源泄露报告里面就不会出现该方法的栈帧
         ResourceLeakDetector.addExclusions(AbstractByteBufAllocator.class, "toLeakAwareBuffer");
     }
 

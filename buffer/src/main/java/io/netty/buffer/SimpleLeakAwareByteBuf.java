@@ -102,6 +102,9 @@ class SimpleLeakAwareByteBuf extends WrappedByteBuf {
 
     @Override
     public boolean release() {
+        // 当调用release的时候，会取调用closeLeak方法，
+        // 会将资源泄露跟踪关闭掉，也就是如果我们在使用完这类ByteBuf之后，
+        // 没有调用release方法正确的释放资源，那么leakTracker就没有被close，就会打印日志告警
         if (super.release()) {
             closeLeak();
             return true;
@@ -121,6 +124,7 @@ class SimpleLeakAwareByteBuf extends WrappedByteBuf {
     private void closeLeak() {
         // Close the ResourceLeakTracker with the tracked ByteBuf as argument. This must be the same that was used when
         // calling DefaultResourceLeak.track(...).
+        // 调用leak的close方法
         boolean closed = leak.close(trackedByteBuf);
         assert closed;
     }

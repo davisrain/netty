@@ -268,7 +268,7 @@ public class ResourceLeakDetector<T> {
             // 因此并不是每次都会创建出对应的tracker对象的，samplingInterval的作用就是如此，
             // 平均情况每samplingInterval次才会创建一个tracker对象
             if ((PlatformDependent.threadLocalRandom().nextInt(samplingInterval)) == 0) {
-                // 调用reportLead方法
+                // 调用reportLeak方法，打印之前存在的资源泄露，即refQueue中保存的那些tracker
                 reportLeak();
                 // 创建一个DefaultResourceLeak对象返回
                 return new DefaultResourceLeak(obj, refQueue, allLeaks, getInitialHint(resourceType));
@@ -284,11 +284,13 @@ public class ResourceLeakDetector<T> {
     }
 
     private void clearRefQueue() {
+        // 遍历refQueue
         for (;;) {
             DefaultResourceLeak ref = (DefaultResourceLeak) refQueue.poll();
             if (ref == null) {
                 break;
             }
+            // 调用tracker的dispose方法
             ref.dispose();
         }
     }
@@ -304,27 +306,41 @@ public class ResourceLeakDetector<T> {
     }
 
     private void reportLeak() {
+        // 如果日志的error等级都没开启的话，不用打印
         if (!needReport()) {
+            // 直接清除refQueue里面的内容
             clearRefQueue();
             return;
         }
 
         // Detect and report previous leaks.
+        // 检测并且报告之前的泄露
         for (;;) {
+            // 遍历refQueue，获取之前没有正确释放的资源的leakTracker
             DefaultResourceLeak ref = (DefaultResourceLeak) refQueue.poll();
+            // 如果队列已经空了，跳出循环
             if (ref == null) {
                 break;
             }
 
+            // 如果tracker已经从allLeaks这个set中删除了，那么说明有成功调用leakTracker的close方法，
+            // 是正确释放的，跳过。这种情况会出现在close方法还没执行的时候，referent就已经开始gc了，所以会导致
+            // leakTracker被添加进了refQueue中，然后close执行结束，leakTracker从allLeaks中被删除。
+            // 所以之后在leakTracker的close方法中添加了reachabilityFence0方法来避免这种情况
             if (!ref.dispose()) {
                 continue;
             }
 
+            // 走到这一步说明确实是没有正确释放资源的对象，生成要打印的日志内容以及清除掉TraceRecord链表
             String records = ref.getReportAndClearRecords();
+            // 将要报告的内容添加进reportedLeaks这个set中，如果添加失败，说明已经报告过
             if (reportedLeaks.add(records)) {
+                // 如果内容为空的话，打印error日志，说明leakTracker没有记录TraceRecord相关的信息
                 if (records.isEmpty()) {
                     reportUntracedLeak(resourceType);
-                } else {
+                }
+                // 如果不为空，将要报告的内容通过error日志打印
+                else {
                     reportTracedLeak(resourceType, records);
                 }
             }
@@ -400,7 +416,11 @@ public class ResourceLeakDetector<T> {
                 ReferenceQueue<Object> refQueue,
                 Set<DefaultResourceLeak<?>> allLeaks,
                 Object initialHint) {
-            // 将referent和refQueue传入父类构造器中，父类是弱引用
+            // 将referent和refQueue传入父类构造器中，父类是弱引用。
+            // 因此referent在被gc之后，当前对象，即tracker会被添加进refQueue中。
+            // 但如果referent在被回收之前，正确释放了资源，那么就会调用到当前对象的close方法，
+            // close方法会将referent从WeakReference的referent属性中清除，那么就不会触发tracker被添加进队列中的操作。
+            // 所以我们可以通过tracker被添加进队列来实现referent未正确释放资源的回调，然后进行告警操作
             super(referent, refQueue);
 
             assert referent != null;
@@ -408,13 +428,15 @@ public class ResourceLeakDetector<T> {
             // Store the hash of the tracked object to later assert it in the close(...) method.
             // It's important that we not store a reference to the referent as this would disallow it from
             // be collected via the WeakReference.
-            // 计算referent的一致性哈希，将其设置为trackedHash属性
+            // 计算referent的一致性哈希，将其设置为trackedHash属性，
+            // 这里使用hash是因为不能持有referent的强引用，否则弱引用就没有意义了
             trackedHash = System.identityHashCode(referent);
-            // 将自身添加到allLeaks这个set中
+            // 将自身添加到allLeaks这个set中，这个set是检查资源是否泄露的关键
             allLeaks.add(this);
             // Create a new Record so we always have the creation stacktrace included.
             // 将自身的head设置为新创建的TraceRecord对象，如果initialHint不为null，会被添加进TraceRecord中。
-            // TraceRecord是一个Throwable类型的对象
+            // TraceRecord是一个Throwable类型的对象，目的是为了记录当前时刻的栈帧信息。
+            // 因为Throwable构造的时候就会调用fillInStackTrace将当前栈帧信息保存起来
             headUpdater.set(this, initialHint == null ?
                     new TraceRecord(TraceRecord.BOTTOM) : new TraceRecord(TraceRecord.BOTTOM, initialHint));
             // 将allLeaks赋值给自身属性持有
@@ -422,6 +444,7 @@ public class ResourceLeakDetector<T> {
         }
 
         @Override
+        // 调用record方法可以记录一个时刻，会生成一个新的TraceRecord对象添加到链表里面，新的TraceRecord会保存当前线程的栈帧信息
         public void record() {
             record0(null);
         }
@@ -459,27 +482,40 @@ public class ResourceLeakDetector<T> {
          */
         private void record0(Object hint) {
             // Check TARGET_RECORDS > 0 here to avoid similar check before remove from and add to lastRecords
+            // targetRecords默认为4，表示的是链表里面的元素个数超过多少就需要通过策略来判断是新增进链表还是直接替换链表的头节点
             if (TARGET_RECORDS > 0) {
                 TraceRecord oldHead;
                 TraceRecord prevHead;
                 TraceRecord newHead;
                 boolean dropped;
                 do {
+                    // 获取DefaultResourceLeak对象里面维护的TraceRecord链表的头节点，并且赋值给prevHead oldHead
+                    // 如果头节点为null，直接返回，说明该tracker已经被关闭了
                     if ((prevHead = oldHead = headUpdater.get(this)) == null) {
                         // already closed.
                         return;
                     }
+                    // 计算出新增一个record之后链表里面的元素个数
                     final int numElements = oldHead.pos + 1;
+                    // 如果个数大于等于了 targetRecords
                     if (numElements >= TARGET_RECORDS) {
+                        // 取系数n为numElements - targetRecords 和 30的最小值
                         final int backOffFactor = Math.min(numElements - TARGET_RECORDS, 30);
+                        // 然后有 1 / 2^n的概率将新的record添加到头节点，换句话说，也就是有很大的概率是替换头节点，防止链表长度的增长
                         if (dropped = PlatformDependent.threadLocalRandom().nextInt(1 << backOffFactor) != 0) {
+                            // 将prevHead指向oldHead的next节点，并且将dropped设置为true，表示会丢弃原本的头节点
                             prevHead = oldHead.next;
                         }
-                    } else {
+                    }
+                    // 如果个数小于 targetRecords，dropped为false
+                    else {
                         dropped = false;
                     }
+                    // 创建新的头节点，其中next节点为prevHead
                     newHead = hint != null ? new TraceRecord(prevHead, hint) : new TraceRecord(prevHead);
+                    // 通过cas替换head指针指向新的头节点
                 } while (!headUpdater.compareAndSet(this, oldHead, newHead));
+                // 如果是替换了头节点，那么原本的头节点就被丢弃了，记录替换头节点的次数
                 if (dropped) {
                     droppedRecordsUpdater.incrementAndGet(this);
                 }
@@ -487,15 +523,21 @@ public class ResourceLeakDetector<T> {
         }
 
         boolean dispose() {
+            // 将WeakReference中的referent属性置为null，如果referent已经被gc了话，该字段应该就是null
             clear();
+            // 将自身从allLeaks这个set中删除
             return allLeaks.remove(this);
         }
 
         @Override
         public boolean close() {
+            // 将当前这个tracker从allLeaks这个set中移除
             if (allLeaks.remove(this)) {
                 // Call clear so the reference is not even enqueued.
+                // 调用clear清除WeakReference对referent的引用，这样在referent被回收的时候，自身这个tracker作为WeakReference的实现类，
+                // 就不会被添加进ReferenceQueue队列中了
                 clear();
+                // 并且将自身的head链表头置为null，帮助TraceRecord链表的gc
                 headUpdater.set(this, null);
                 return true;
             }
@@ -505,15 +547,19 @@ public class ResourceLeakDetector<T> {
         @Override
         public boolean close(T trackedObject) {
             // Ensure that the object that was tracked is the same as the one that was passed to close(...).
+            // 判断传入的对象是否和tracker跟踪的对象一致
             assert trackedHash == System.identityHashCode(trackedObject);
 
             try {
+                // 调用close方法
                 return close();
             } finally {
                 // This method will do `synchronized(trackedObject)` and we should be sure this will not cause deadlock.
                 // It should not, because somewhere up the callstack should be a (successful) `trackedObject.release`,
                 // therefore it is unreasonable that anyone else, anywhere, is holding a lock on the trackedObject.
                 // (Unreasonable but possible, unfortunately.)
+                // 这里只添加一个对trackedObject的synchronized是因为防止指令进行重排序，
+                // 因为垃圾收集器可能在某个对象方法执行的时候就进行gc了，如果是这样的话，close方法可能会出现问题
                 reachabilityFence0(trackedObject);
             }
         }
@@ -552,7 +598,9 @@ public class ResourceLeakDetector<T> {
         }
 
         String getReportAndClearRecords() {
+            // 获取TraceRecord链表的头节点，并且将头节点置为null
             TraceRecord oldHead = headUpdater.getAndSet(this, null);
+            // 生成要报告的内容
             return generateReport(oldHead);
         }
 
@@ -565,34 +613,49 @@ public class ResourceLeakDetector<T> {
             final int dropped = droppedRecordsUpdater.get(this);
             int duped = 0;
 
+            // 计算链表中有多少个record
             int present = oldHead.pos + 1;
             // Guess about 2 kilobytes per stack trace
+            // 假设一个record的stacktrace占用2kb
             StringBuilder buf = new StringBuilder(present * 2048).append(NEWLINE);
             buf.append("Recent access records: ").append(NEWLINE);
 
             int i = 1;
             Set<String> seen = new HashSet<String>(present);
+            // 遍历record链表，直到record等于BOTTOM
             for (; oldHead != TraceRecord.BOTTOM; oldHead = oldHead.next) {
+                // 调用record的toString方法打印出栈帧
                 String s = oldHead.toString();
+                // 将内容添加进set中
                 if (seen.add(s)) {
+                    // 如果链表中的下一个record是BOTTOM
                     if (oldHead.next == TraceRecord.BOTTOM) {
+                        // 在buf中添加created at内容，表示该资源是在哪个位置创建的
                         buf.append("Created at:").append(NEWLINE).append(s);
                     } else {
+                        // 其他情况只在栈帧前添加#i的编号
                         buf.append('#').append(i++).append(':').append(NEWLINE).append(s);
                     }
-                } else {
+                }
+                // 如果遇见相同的内容
+                else {
+                    // 将重复的次数+1
                     duped++;
                 }
             }
 
+            // 如果存在重复的次数
             if (duped > 0) {
+                // 在最后添加内容显示有多少个record因为重复被丢弃了
                 buf.append(": ")
                         .append(duped)
                         .append(" leak records were discarded because they were duplicates")
                         .append(NEWLINE);
             }
 
+            // 如果dropped大于0，说明在记录record的时候存在丢弃的record
             if (dropped > 0) {
+                // 那么添加内容说明有多少个record在记录时就因为targetRecords的限制被丢弃了
                 buf.append(": ")
                    .append(dropped)
                    .append(" leak records were discarded because the leak record count is targeted to ")
@@ -628,6 +691,7 @@ public class ResourceLeakDetector<T> {
         do {
             oldMethods = excludedMethods.get();
             newMethods = Arrays.copyOf(oldMethods, oldMethods.length + 2 * methodNames.length);
+            // 该数组内容两两为一组，第一个为类名，第二个为方法名
             for (int i = 0; i < methodNames.length; i++) {
                 newMethods[oldMethods.length + i * 2] = clz.getName();
                 newMethods[oldMethods.length + i * 2 + 1] = methodNames[i];
@@ -677,17 +741,22 @@ public class ResourceLeakDetector<T> {
         @Override
         public String toString() {
             StringBuilder buf = new StringBuilder(2048);
+            // 如果存在hintString，在内容前添加Hint
             if (hintString != null) {
                 buf.append("\tHint: ").append(hintString).append(NEWLINE);
             }
 
             // Append the stack trace.
+            // 获取创建record时的栈帧信息
             StackTraceElement[] array = getStackTrace();
             // Skip the first three elements.
+            // 跳过栈顶的前三个栈帧，因为前三个是跟ResourceLeakDetector相关的，不用展示
             out: for (int i = 3; i < array.length; i++) {
                 StackTraceElement element = array[i];
                 // Strip the noisy stack trace elements.
+                // 获取应该排除的方法集合
                 String[] exclusions = excludedMethods.get();
+                // 如果栈帧的方法名命中了应该排除的方法，也跳过
                 for (int k = 0; k < exclusions.length; k += 2) {
                     // Suppress a warning about out of bounds access
                     // since the length of excludedMethods is always even, see addExclusions()
@@ -697,6 +766,7 @@ public class ResourceLeakDetector<T> {
                     }
                 }
 
+                // 否则将栈帧内容添加进buf中
                 buf.append('\t');
                 buf.append(element.toString());
                 buf.append(NEWLINE);
