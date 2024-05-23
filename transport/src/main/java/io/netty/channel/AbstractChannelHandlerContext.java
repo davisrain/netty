@@ -133,9 +133,12 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public EventExecutor executor() {
+        // 获取自身持有的executor，如果为null的话
         if (executor == null) {
+            // 返回channel持有的eventLoop
             return channel().eventLoop();
         } else {
+            // 否则返回自身持有的executor
             return executor;
         }
     }
@@ -354,10 +357,14 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     }
 
     private void invokeExceptionCaught(final Throwable cause) {
+        // 如果当前handlerContext状态是addComplete的，说明可以调用
         if (invokeHandler()) {
             try {
+                // 获取handlerContext中持有的实际的channelHandler，调用其exceptionCaught方法进行异常处理
                 handler().exceptionCaught(this, cause);
-            } catch (Throwable error) {
+            }
+            // 如果这个异常处理的方法都出现了异常，那么只能打印日志，将异常express，避免影响eventLoop线程执行
+            catch (Throwable error) {
                 if (logger.isDebugEnabled()) {
                     logger.debug(
                         "An exception {}" +
@@ -371,7 +378,9 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
                         "method while handling the following exception:", error, cause);
                 }
             }
-        } else {
+        }
+        // 否则，调用fireExceptionCaught，向pipeline链中的下一个channelInboundHandlerContext传递
+        else {
             fireExceptionCaught(cause);
         }
     }
@@ -467,42 +476,62 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelHandlerContext fireChannelReadComplete() {
+        // 查找到pipeline中需要调用readComplete方法的那些ChannelInboundHandler，然后对其readComplete方法进行调用。
+        // 在对应的handler的readComplete方法中继续调用ctx的该方法，可以实现pipeline中的handler的责任链调用
         invokeChannelReadComplete(findContextInbound(MASK_CHANNEL_READ_COMPLETE));
         return this;
     }
 
     static void invokeChannelReadComplete(final AbstractChannelHandlerContext next) {
+        // 获取channelHandlerContext中的executor，如果不存在，默认会获取channel的eventLoop
         EventExecutor executor = next.executor();
+        // 判断当前线程是否是eventLoop的线程
         if (executor.inEventLoop()) {
+            // 如果是的话，调用channelHandlerContext的invokeChannelReadComplete方法
             next.invokeChannelReadComplete();
-        } else {
+        }
+        // 如果当前线程不是eventLoop的线程
+        else {
+            // 获取handlerContext中的invokeTasks
             Tasks tasks = next.invokeTasks;
+            // 如果tasks为null
             if (tasks == null) {
+                // 将next传入创建出一个Tasks对象，放入到next的invokeTasks字段中
                 next.invokeTasks = tasks = new Tasks(next);
             }
+            // 然后调用executor的execute方法，开启线程执行next.invokeChannelReadComplete逻辑
             executor.execute(tasks.invokeChannelReadCompleteTask);
         }
     }
 
     private void invokeChannelReadComplete() {
+        // 如果ChannelHandlerContext的状态是addComplete的，执行下面的逻辑
         if (invokeHandler()) {
             try {
                 // DON'T CHANGE
                 // Duplex handlers implements both out/in interfaces causing a scalability issue
                 // see https://bugs.openjdk.org/browse/JDK-8180450
+                // 获取到handlerContext持有的handler
                 final ChannelHandler handler = handler();
                 final DefaultChannelPipeline.HeadContext headContext = pipeline.head;
+                // 如果handler等于HeadContext
                 if (handler == headContext) {
+                    // 调用headContext的channelReadComplete方法
                     headContext.channelReadComplete(this);
-                } else if (handler instanceof ChannelDuplexHandler) {
+                }
+                // 否则调用自身handler的channelReadComplete方法
+                else if (handler instanceof ChannelDuplexHandler) {
                     ((ChannelDuplexHandler) handler).channelReadComplete(this);
                 } else {
                     ((ChannelInboundHandler) handler).channelReadComplete(this);
                 }
             } catch (Throwable t) {
+                // 如果出现异常，调用handlerContext的invokeExceptionCaught方法进行异常处理
                 invokeExceptionCaught(t);
             }
-        } else {
+        }
+        // 否则调用fireChannelReadComplete，执行pipeline中的下一个handler的channelReadComplete方法
+        else {
             fireChannelReadComplete();
         }
     }

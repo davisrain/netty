@@ -100,15 +100,27 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
     protected class NioByteUnsafe extends AbstractNioUnsafe {
 
         private void closeOnRead(ChannelPipeline pipeline) {
+            // 判断channel底层的javaSocket是否已经关闭了，或者不是open和connect状态了
+            // 如果不是
             if (!isInputShutdown0()) {
+                // 判断channel的config中是否允许半关闭
                 if (isAllowHalfClosure(config())) {
+                    // 如果允许，关闭input
                     shutdownInput();
+                    // 然后通过pipeline发送用户事件，表达channel的输入关闭了
                     pipeline.fireUserEventTriggered(ChannelInputShutdownEvent.INSTANCE);
-                } else {
+                }
+                // 如果不允许半关闭
+                else {
+                    // 调用close方法，并且将voidPromise传入
                     close(voidPromise());
                 }
-            } else if (!inputClosedSeenErrorOnRead) {
+            }
+            // 如果是，判断inputClosedSeenErrorOnRead是否为false
+            else if (!inputClosedSeenErrorOnRead) {
+                // 如果是的话，将inputClosedSeenErrorOnRead置为true，表示在读取的时候发现了错误导致了input的关闭
                 inputClosedSeenErrorOnRead = true;
+                // 通过pipeline触发用户事件，表示channel在read完成后输入关闭了
                 pipeline.fireUserEventTriggered(ChannelInputShutdownReadComplete.INSTANCE);
             }
         }
@@ -205,10 +217,13 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 // 调用pipeline的fireChannelReadComplete方法触发所有持有的channelHandler的readComplete方法
                 pipeline.fireChannelReadComplete();
 
+                // 如果close为true，即从channel读取的出的字节数为-1的情况，EOF
                 if (close) {
+                    // 调用closeOnRead方法
                     closeOnRead(pipeline);
                 }
             } catch (Throwable t) {
+                // 如果读取channel的过程中出现异常，调用handleReadException进行处理
                 handleReadException(pipeline, byteBuf, t, close, allocHandle);
             } finally {
                 // Check if there is a readPending which was not processed yet.

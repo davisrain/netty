@@ -1195,12 +1195,14 @@ public class DefaultChannelPipeline implements ChannelPipeline {
      * in {@link ChannelHandler#exceptionCaught(ChannelHandlerContext, Throwable)}.
      */
     protected void onUnhandledInboundException(Throwable cause) {
+        // 打印日志
         try {
             logger.warn(
                     "An exceptionCaught() event was fired, and it reached at the tail of the pipeline. " +
                             "It usually means the last handler in the pipeline did not handle the exception.",
                     cause);
         } finally {
+            // 调用ReferenceCountUtil的release方法，如果cause异常是ReferenceCounted类型的，释放它的引用数量
             ReferenceCountUtil.release(cause);
         }
     }
@@ -1336,6 +1338,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            // 对于那些没有在前置的handler中被处理掉的异常，最终会通过ctx的fireExceptionCaught方法达到tailContext
+            // 调用onUnhandledInboundException方法进行处理
             onUnhandledInboundException(cause);
         }
 
@@ -1425,13 +1429,14 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            // 直接调用ctx的fireExceptionCaught方法将异常处理传递给下一个channelHandlerContext
             ctx.fireExceptionCaught(cause);
         }
 
         @Override
         public void channelRegistered(ChannelHandlerContext ctx) {
             invokeHandlerAddedIfNeeded();
-            // 调用ctx 的fireChannelRegistered方法
+            // 调用ctx 的fireChannelRegistered方法，将channelRegistered传递给下一个channelHandlerContext处理
             ctx.fireChannelRegistered();
         }
 
