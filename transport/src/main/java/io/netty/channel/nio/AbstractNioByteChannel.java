@@ -107,10 +107,10 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 if (isAllowHalfClosure(config())) {
                     // 如果允许，关闭input
                     shutdownInput();
-                    // 然后通过pipeline发送用户事件，表达channel的输入关闭了
+                    // 然后通过pipeline发送用户事件，表达channel的输入侧关闭了
                     pipeline.fireUserEventTriggered(ChannelInputShutdownEvent.INSTANCE);
                 }
-                // 如果不允许半关闭
+                // 如果不允许半关闭，那么直接将channel关闭
                 else {
                     // 调用close方法，并且将voidPromise传入
                     close(voidPromise());
@@ -127,20 +127,31 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
 
         private void handleReadException(ChannelPipeline pipeline, ByteBuf byteBuf, Throwable cause, boolean close,
                 RecvByteBufAllocator.Handle allocHandle) {
+            //  如果ByteBuf不为null的话
             if (byteBuf != null) {
+                // 判断byteBuf是否是可读的，即writableIndex > readableIndex
                 if (byteBuf.isReadable()) {
+                    // 如果是，将readPending设置为false
                     readPending = false;
+                    // 调用pipeline的fireChannelRead方法，依次调用pipeline中的channelHandler的channelRead方法，读取byteBuf中的内容
                     pipeline.fireChannelRead(byteBuf);
-                } else {
+                }
+                // 如果是不可读的，调用byteBuf的release方法，释放chunk分配的内存
+                else {
                     byteBuf.release();
                 }
             }
+            // 调用allocHandle的readComplete方法，进行读取完成后的处理逻辑，如Adaptive的recvAllocator会根据记录的读取的总字节数，
+            // 调整下次读取的字节大小
             allocHandle.readComplete();
+            // 调用pipeline的fireChannelReadComplete方法，依次调用pipeline中的channelHandler的channelReadComplete方法
             pipeline.fireChannelReadComplete();
+            // 调用pipeline的fireExceptionCaught方法，也就是依次调用pipeline中的channelHandler的exceptionCaught方法对异常进行处理
             pipeline.fireExceptionCaught(cause);
 
             // If oom will close the read event, release connection.
             // See https://github.com/netty/netty/issues/10434
+            // 如果 close为true  或者 异常是oom 或者 io异常，关闭tcp连接
             if (close || cause instanceof OutOfMemoryError || cause instanceof IOException) {
                 closeOnRead(pipeline);
             }
@@ -219,7 +230,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
 
                 // 如果close为true，即从channel读取的出的字节数为-1的情况，EOF
                 if (close) {
-                    // 调用closeOnRead方法
+                    // 调用closeOnRead方法，关闭tcp连接
                     closeOnRead(pipeline);
                 }
             } catch (Throwable t) {
@@ -232,7 +243,13 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 // * The user called Channel.read() or ChannelHandlerContext.read() in channelReadComplete(...) method
                 //
                 // See https://github.com/netty/netty/issues/2254
+                // 判断这里是否存在一个还未处理的readPending，发生这种情况有两个原因：
+                // 1、用户在channelRead方法中调用的了channel或者channelHandlerContext的read方法
+                // 2、用户在channelReadComplete方法中调用了 channel  或者 channelHandlerContext的read方法
+
+                // 如果readPending为false 并且 channel的config中的autoRead也为false的话
                 if (!readPending && !config.isAutoRead()) {
+                    // 将readOp从 selector中remove掉
                     removeReadOp();
                 }
             }

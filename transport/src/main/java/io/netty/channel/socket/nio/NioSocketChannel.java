@@ -207,10 +207,14 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
 
     @Override
     public ChannelFuture shutdownInput(final ChannelPromise promise) {
+        // 获取channel持有的eventLoop
         EventLoop loop = eventLoop();
+        // 如果当前线程是eventLoop的线程
         if (loop.inEventLoop()) {
+            // 直接执行shutdownInput0方法
             shutdownInput0(promise);
         } else {
+            // 否则调用loop的execute进行执行
             loop.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -218,6 +222,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
                 }
             });
         }
+        // 返回promise
         return promise;
     }
 
@@ -275,18 +280,23 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
     }
     private void shutdownInput0(final ChannelPromise promise) {
         try {
+            // 调用不带参数的shutdownInput0方法
             shutdownInput0();
+            // 如果执行成功，将promise设置为success的
             promise.setSuccess();
         } catch (Throwable t) {
+            // 如果在shutdown过程中出现了异常，将异常设置进promise中
             promise.setFailure(t);
         }
     }
 
     @SuppressJava6Requirement(reason = "Usage guarded by java version check")
     private void shutdownInput0() throws Exception {
+        // 如果java版本大于7，直接调用javaChannel的shutdownInput方法
         if (PlatformDependent.javaVersion() >= 7) {
             javaChannel().shutdownInput();
         } else {
+            //  否则调用javaChannel中的socket的 shutdownInput方法
             javaChannel().socket().shutdownInput();
         }
     }

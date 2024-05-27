@@ -160,20 +160,28 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
 
     @Override
     public Throwable cause() {
+        // 根据promise持有的result，获取promise持有的cause
         return cause0(result);
     }
 
     private Throwable cause0(Object result) {
+        // 如果result不是CauseHolder类型的，说明不存在异常，直接返回null
         if (!(result instanceof CauseHolder)) {
             return null;
         }
+        // 如果result等于CANCELLATION_CAUSE_HOLDER这个holder
         if (result == CANCELLATION_CAUSE_HOLDER) {
+            //  创建出一个CancellationException
             CancellationException ce = new LeanCancellationException();
+            // 将result替换成ce的包装类CauseHolder
             if (RESULT_UPDATER.compareAndSet(this, CANCELLATION_CAUSE_HOLDER, new CauseHolder(ce))) {
+                // 返回ce
                 return ce;
             }
+            // 如果cas失败，获取当前的result
             result = this.result;
         }
+        // 返回result的cause
         return ((CauseHolder) result).cause;
     }
 

@@ -48,6 +48,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
     private final ChannelId id;
     private final Unsafe unsafe;
     private final DefaultChannelPipeline pipeline;
+    // 创建一个VoidChannelPromise给channel持有，其中channel传参为当前channel，fireException为false
     private final VoidChannelPromise unsafeVoidPromise = new VoidChannelPromise(this, false);
     private final CloseFuture closeFuture = new CloseFuture(this);
 
@@ -654,9 +655,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         public void close(final ChannelPromise promise) {
             assertEventLoop();
 
+            // 创建一个 ClosedChannelException 异常对象，并且修改其栈帧内容，只保存一条栈帧，即AbstractChannel类的close方法
             ClosedChannelException closedChannelException =
                     // 创建一个StacklessCloseChannelException示例
                     StacklessClosedChannelException.newInstance(AbstractChannel.class, "close(ChannelPromise)");
+            // 调用close方法执行实际的关闭逻辑，并且notify设置为false
             close(promise, closedChannelException, closedChannelException, false);
         }
 
@@ -716,16 +719,23 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         private void close(final ChannelPromise promise, final Throwable cause,
                            final ClosedChannelException closeCause, final boolean notify) {
+            // 将promise设置为uncancellable的，如果设置失败，直接返回
             if (!promise.setUncancellable()) {
                 return;
             }
 
+            // 如果closeInitiated为true的话，说明close方法在之前就已经被调用了
             if (closeInitiated) {
+                // 判断 closeFuture是否isDone了
                 if (closeFuture.isDone()) {
                     // Closed already.
+                    // 说明该channel已经被关闭了，那么将promise设置为success的
                     safeSetSuccess(promise);
-                } else if (!(promise instanceof VoidChannelPromise)) { // Only needed if no VoidChannelPromise.
+                }
+                // 如果closeFuture没有done掉，并且promise不是 VoidChannelPromise
+                else if (!(promise instanceof VoidChannelPromise)) { // Only needed if no VoidChannelPromise.
                     // This means close() was called before so we just register a listener and return
+                    // 这说明close在之前就已经被调用了，那么我们只需要针对closeFuture添加一个listener，监听器的逻辑就是将promise设置为success
                     closeFuture.addListener(new ChannelFutureListener() {
                         @Override
                         public void operationComplete(ChannelFuture future) throws Exception {
@@ -733,16 +743,24 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         }
                     });
                 }
+                // 直接返回
                 return;
             }
 
+            // 将closeInitiated设置为true，表示close方法已经被调用
             closeInitiated = true;
 
+            // 判断channel当前是否是active的
             final boolean wasActive = isActive();
+            // 获取unsafe持有的outboundBuffer
             final ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
+            // 将outboundBuffer设置为null，不允许添加消息进缓冲区了
             this.outboundBuffer = null; // Disallow adding any messages and flushes to outboundBuffer.
+            // 调用prepareToClose方法，返回了一个close需要使用的Executor
             Executor closeExecutor = prepareToClose();
+            // 如果closeExecutor不为null的话
             if (closeExecutor != null) {
+                // 调用其execute方法 执行doClose0方法，执行具体的关闭逻辑
                 closeExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
@@ -765,7 +783,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         }
                     }
                 });
-            } else {
+            }
+            // 如果closeExecutor为null的话，那么就由当前线程去执行具体的关闭逻辑
+            else {
                 try {
                     // Close the channel and fail the queued messages in all cases.
                     doClose0(promise);
@@ -791,11 +811,17 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         private void doClose0(ChannelPromise promise) {
             try {
+                // 调用doClose方法
                 doClose();
+                // 将closeFuture设置为closed
                 closeFuture.setClosed();
+                // 将promise设置为success
                 safeSetSuccess(promise);
             } catch (Throwable t) {
+                // 如果出现异常
+                // 将closeFuture设置为closed
                 closeFuture.setClosed();
+                // 将异常设置进promise中
                 safeSetFailure(promise, t);
             }
         }

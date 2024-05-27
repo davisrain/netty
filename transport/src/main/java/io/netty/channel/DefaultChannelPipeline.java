@@ -943,6 +943,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
     @Override
     public final ChannelPipeline fireUserEventTriggered(Object event) {
+        // 从head开始调用pipeline中的channelHandlerContext的userEventTriggered方法
         AbstractChannelHandlerContext.invokeUserEventTriggered(head, event);
         return this;
     }
@@ -1265,6 +1266,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     protected void onUnhandledInboundUserEventTriggered(Object evt) {
         // This may not be a configuration error and so don't log anything.
         // The event may be superfluous for the current pipeline configuration.
+        // 直接对event进行引用释放，如果event是ReferenceCounted类型的话
         ReferenceCountUtil.release(evt);
     }
 
@@ -1333,6 +1335,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+            // 如果在TailContext前的那些channelHandler没有成功处理userEventTriggered方法，或者处理完成后仍继续了pipeline中的调用，
+            // 最终会到TailContext中，那么调用onUnhandledInboundUserEventTriggered方法来处理未处理的event
             onUnhandledInboundUserEventTriggered(evt);
         }
 
@@ -1483,6 +1487,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+            //  headContext的userEventTriggered方法就是继续调用pipeline中下一个可以执行userEventTriggered方法的channelHandlerContext
             ctx.fireUserEventTriggered(evt);
         }
 

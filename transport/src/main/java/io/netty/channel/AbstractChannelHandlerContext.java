@@ -387,6 +387,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelHandlerContext fireUserEventTriggered(final Object event) {
+        // 从this开始找到下一个可以执行userEventTriggered方法的channelHandlerContext
         invokeUserEventTriggered(findContextInbound(MASK_USER_EVENT_TRIGGERED), event);
         return this;
     }
@@ -414,6 +415,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
                 // see https://bugs.openjdk.org/browse/JDK-8180450
                 final ChannelHandler handler = handler();
                 final DefaultChannelPipeline.HeadContext headContext = pipeline.head;
+                // 如果handler等于HeadContext，调用headContext的userEventTriggered方法
                 if (handler == headContext) {
                     headContext.userEventTriggered(this, event);
                 } else if (handler instanceof ChannelDuplexHandler) {

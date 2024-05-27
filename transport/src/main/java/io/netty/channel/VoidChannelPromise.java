@@ -37,18 +37,25 @@ public final class VoidChannelPromise extends AbstractFuture<Void> implements Ch
      */
     public VoidChannelPromise(final Channel channel, boolean fireException) {
         ObjectUtil.checkNotNull(channel, "channel");
+        // 将channel持有
         this.channel = channel;
+        // 如果fireException为true的话
         if (fireException) {
+            // 初始化一个ChannelFutureListener赋值给fireExceptionListener
             fireExceptionListener = new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
                     Throwable cause = future.cause();
+                    // 如果监听的future存在cause
                     if (cause != null) {
+                        // 调用fireException0方法对异常进行处理
                         fireException0(cause);
                     }
                 }
             };
-        } else {
+        }
+        // 如果为false，不设置fireExceptionListener
+        else {
             fireExceptionListener = null;
         }
     }
@@ -232,7 +239,9 @@ public final class VoidChannelPromise extends AbstractFuture<Void> implements Ch
         // if not the pipeline is not setup and so it would hit the tail
         // of the pipeline.
         // See https://github.com/netty/netty/issues/1517
+        //  如果fireExceptionListener不为null 并且 channel是已经注册到eventLoop的
         if (fireExceptionListener != null && channel.isRegistered()) {
+            // 调用pipeline的fireExceptionCaught方法对异常进行处理
             channel.pipeline().fireExceptionCaught(cause);
         }
     }
