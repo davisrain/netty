@@ -177,15 +177,29 @@ abstract class SizeClasses implements SizeClassesMetric {
             // 获取对应index的sizeClass
             short[] sz = sizeClasses[idx];
             // 如果sizeClass的isMultiPageSize标识为yes，将nPSizes+1
+            // pageSize默认是1 << 13, 那么size是它的倍数的那些sizeClass分别是
+            // log2Group log2Delta nDelta
+            //   12         10       4
+            //   13         11       4
+            //   14         12       4
+            //   15         13       0
+            //   ...        ...      ...
+            // log2Delta大于13的都满足条件
             if (sz[PAGESIZE_IDX] == yes) {
                 nPSizes++;
             }
             // 如果sizeClass的isSubpage的标识为yes，将nSubpages+1，并且将smallMaxSizeIdx设置为当前index
+            // 因为subpage的判断条件是size小于 1 << 13 + 2的那些sizeClass
+            // 因此一直到
+            // log2Group log2Delta nDelta
+            //   14         12       4
+            // 之前都是subpage，即size小于 32kb的那些sizeClass都属于subpage，和常理认为的小于8kb有出入
             if (sz[SUBPAGE_IDX] == yes) {
                 nSubpages++;
                 smallMaxSizeIdx = idx;
             }
             // 如果sizeClass的log2DeltaLookup不为no，将lookupMaxSize设置为当前sizeClass计算出来的内存大小
+            // log2DeltaLookup不为no的都是size小于等于 1 << 12的那些sizeClass，计算出最大的lookupMaxSize就是 1 << 12 = 4kb
             if (sz[LOG2_DELTA_LOOKUP_IDX] != no) {
                 lookupMaxSize = sizeOf(sz, directMemoryCacheAlignment);
             }
@@ -207,7 +221,7 @@ abstract class SizeClasses implements SizeClassesMetric {
         sizeIdx2sizeTab = newIdx2SizeTab(sizeClasses, nSizes, directMemoryCacheAlignment);
         // 创建isMultiPageSize标识为true的那些sizeClass对应的内存大小size 的数组，赋值给sizeClasses的pageIdx2SizeTab属性
         pageIdx2sizeTab = newPageIdx2sizeTab(sizeClasses, nSizes, nPSizes, directMemoryCacheAlignment);
-        //
+        // 创建根据size查找到sizeClassIndex的反查数组
         size2idxTab = newSize2idxTab(lookupMaxSize, sizeClasses);
     }
 
