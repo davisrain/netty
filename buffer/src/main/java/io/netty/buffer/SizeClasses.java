@@ -102,10 +102,15 @@ abstract class SizeClasses implements SizeClassesMetric {
     protected final int chunkSize;
     protected final int directMemoryCacheAlignment;
 
+    // sizeClass的总数量
     final int nSizes;
+    // 是subPage的sizeClass数量，subPage是指size < 1 << 13 + 2的那些sizeClass
     final int nSubpages;
+    // 是multiPage的sizeClass数量，multiPage是指size是pageSize倍数的那些sizeClass
     final int nPSizes;
+    // 能够直接通过lookup数组查找到sizeIdx的最大size，即1 << 12
     final int lookupMaxSize;
+    // 属于subPage的最大的sizeIdx，即size等于 1 << 13 + 2的sizeClass的index
     final int smallMaxSizeIdx;
 
     private final int[] pageIdx2sizeTab;
@@ -271,6 +276,7 @@ abstract class SizeClasses implements SizeClassesMetric {
 
         // 如果log2Size小于LOG2_MAX_LOOKUP_SIZE(默认为12) 或者 log2Size等于LOG2_MAX_LOOKUP_SIZE且remove为no，
         // 将log2DeltaLoopup设置为log2Delta，否则为no
+        // 因此最大的logSize为12，是log2Group = 11 log2Delta = 9 nDelta = 4的这个sizeClass，那么它的log2DeltaLookup = log2Delta = 9
         int log2DeltaLookup = log2Size < LOG2_MAX_LOOKUP_SIZE ||
                               log2Size == LOG2_MAX_LOOKUP_SIZE && remove == no
                 ? log2Delta : no;

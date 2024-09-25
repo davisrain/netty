@@ -91,7 +91,7 @@ final class PoolThreadCache {
             smallSubPageDirectCaches = null;
             normalDirectCaches = null;
         }
-        // 对对arena作同样的操作
+        // 对堆arena作同样的操作
         if (heapArena != null) {
             // Create the caches for the heap allocations
             smallSubPageHeapCaches = createSubPageCaches(

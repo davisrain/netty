@@ -300,7 +300,7 @@ public class PooledByteBufAllocator extends AbstractByteBufAllocator implements 
         super(preferDirect);
         // 创建一个PoolThreadLocalCache对象，该对象是一个FastThreadLocal，将useCacheForAllThreads作为参数传入
         threadCache = new PoolThreadLocalCache(useCacheForAllThreads);
-        // 设置smallCacheSize和normalCacheSize
+        // 设置smallCacheSize和normalCacheSize，默认为256和64
         this.smallCacheSize = smallCacheSize;
         this.normalCacheSize = normalCacheSize;
 
