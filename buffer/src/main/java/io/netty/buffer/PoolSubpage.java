@@ -62,26 +62,32 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
         this.chunk = chunk;
         // 设置pageShifts
         this.pageShifts = pageShifts;
-        // 设置runOffset
+        // 设置runOffset，即这个PoolSubpage所代表的run内存在PoolChunk持有的内存中开始页的偏移量
         this.runOffset = runOffset;
-        // 设置runSize
+        // 设置runSize，这个PoolSubpage所持有的内存大小
         this.runSize = runSize;
-        // 设置elemSize
+        // 设置elemSize，这个PoolSubpage每次分配的内存大小
         this.elemSize = elemSize;
         // 创建一个long类型的数组作为bitmap，length为runSize无符号右移6 + LOG2_QUANTUM(4)位
         // 因为sizeClasses中的sizeClass的size大小都是2^LOG2_QUANTUM的倍数，因此可以直接除以2^LOG2_QUANTUM的大小；
-        // 又因为long是64位，除以64表示需要多少个long来表示内存的位图，即long数组的长度
+        // 又因为long是64位，除以64表示需要多少个long来表示内存的位图，即long数组的长度。
+
+        // 这个bitmap中的所有long代表了一个内存位图，每一位代表的是16字节的内存，也就是 1 << LOG2_QUANTUM大小的内存
+        // 这里以16字节作为单位是因为每次分配的一定是大于等于16字节的，因此计算出的long数组长度能够满足所有场景。
+        // 而实际要用到多少长度的long数组，会由下面的bitmapLength计算得出
         bitmap = new long[runSize >>> 6 + LOG2_QUANTUM]; // runSize / 64 / QUANTUM
 
         // 设置doNotDestroy为true
         doNotDestroy = true;
         // 如果elemSize不为0
         if (elemSize != 0) {
-            // 计算当前runSize包含elemSiz的数量
+            // 计算当前runSize包含elemSiz的数量，即这个PoolSubpage能够分配多少个elemSize大小的内存
+            // 并且赋值给numAvail，表示初始状态下能分配的elemSize内存的数量
             maxNumElems = numAvail = runSize / elemSize;
             // 将下一个可用的elem的下标设置为0
             nextAvail = 0;
             // bitmap的长度为 最大的elem数量右移6位，代表要需要多少个long来表示elemSize的位图
+            // 即maxNumElems / 64，表示的是如果long的每一位代表一个elemSize大小的内存，需要用多少个long来表示
             bitmapLength = maxNumElems >>> 6;
             // 如果maxNumElems位与63不为0的话，说明elem的数量不是64的整数倍，因此需要添加一个long来表示位图，将bitmapLength + 1
             if ((maxNumElems & 63) != 0) {
@@ -126,6 +132,8 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
         }
 
         // 根据bitmapIdx生成handle返回
+        // 根据runOffset pages isUsed isSubpage bitmapIdx生成一个handle返回
+        // 其中isUsed和isSubpage固定为1
         return toHandle(bitmapIdx);
     }
 
@@ -238,13 +246,15 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
     private int findNextAvail0(int i, long bits) {
         // 获取该subpage能够容纳的最大elem的数量
         final int maxNumElems = this.maxNumElems;
-        // 将i左移6位，获取到可用elem所在的index的基础位置
+        // 将i左移6位，获取到可用elem所在的index的基础位置，
+        // 即将i乘以64，表示前面已经扫描过的没有可用位置的long所包含的位数
         final int baseVal = i << 6;
         // 然后从低到高依次遍历位图的每一位
         for (int j = 0; j < 64; j ++) {
             // 如果发现某一位为0
             if ((bits & 1) == 0) {
-                // 将该位与baseVal做位或操作，得到可用的elem的index
+                // 将该位与baseVal做位或操作，得到可用的elem的index，即将j位置加上前面扫描过的所有long的位数，
+                // 得到可占用的elemSize在位图中的实际位置
                 int val = baseVal | j;
                 // 如果val小于最大的elem数量，返回val
                 if (val < maxNumElems) {

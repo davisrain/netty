@@ -212,6 +212,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
         // 初始状态，将空闲的字节数 设置为 chunkSize
         freeBytes = chunkSize;
 
+        // 根据最大的pageIdx作为长度创建runAvail的一个优先队列数组
         runsAvail = newRunsAvailqueueArray(maxPageIdx);
         // 创建一个用于runsAvail的锁
         runsAvailLock = new ReentrantLock();
@@ -383,7 +384,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
         runsAvailLock.lock();
         try {
             //find first queue which has at least one big enough run
-            // 找到第一个有足够空间的run的队列下标
+            // 找到第一个有足够空间的runAvail优先队列下标
             int queueIdx = runFirstBestFit(pageIdx);
             if (queueIdx == -1) {
                 return -1;
@@ -486,7 +487,8 @@ final class PoolChunk<T> implements PoolChunkMetric {
             int availOffset = runOffset + needPages;
             // 将可用的runOffset、剩余的page数量作为参数，构建剩余的可用runHandle的值
             long availRun = toRunHandle(availOffset, remPages, 0);
-            // 然后将可用的runHandle插入到优先队列中
+            // 然后将剩余可用的runHandle插入到runAvailable优先队列数组中
+            // 以及往runAvailMap插入runOffset 和 runOffset + remPages - 1的k-v，v就是剩余可用的runHandle
             insertAvailRun(availOffset, remPages, availRun);
 
             // not avail
@@ -531,7 +533,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
             int runOffset = runOffset(runHandle);
             // 确保runOffset对应的subpage数组中的元素为null
             assert subpages[runOffset] == null;
-            // 根据sizeIdx获取对应的size大小
+            // 根据sizeIdx获取对应的size大小，也就是该PoolSubpage每次能够分配的内存大小elemSize
             int elemSize = arena.sizeIdx2size(sizeIdx);
 
             // 创建一个PoolSubpage对象
