@@ -33,7 +33,12 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
     private final int runSize;
     private final long[] bitmap;
 
+    // 整个PoolSubpage链表是维护在对应arena的PoolSubpage数组里面的，数组是根据sizeIdx作为下标的，
+    // 也就是说数组的每个元素都是一个PoolSubpage链表的头节点，该链表里面的PoolSubpage都是elemSize是sizeIdx的那些PoolSubpage
+
+    // PoolSubpage链表的前置节点
     PoolSubpage<T> prev;
+    // PoolSubpage链表的后置节点
     PoolSubpage<T> next;
 
     boolean doNotDestroy;
@@ -94,7 +99,7 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
                 bitmapLength ++;
             }
         }
-        // 将自身添加进PoolSubpage链表中
+        // 将自身添加进PoolSubpage链表中，采用的是头插法，并且head头节点是保持不变的
         addToPool(head);
     }
 
@@ -127,6 +132,7 @@ final class PoolSubpage<T> implements PoolSubpageMetric {
         bitmap[q] |= 1L << r;
 
         // 将numAvail - 1，并且判断如果等于0了，说明当前PoolSubpage对应的run已经用完了，将其从内存池中删除
+        // 即从arena的PoolSubpage数组里维护的链表中删除
         if (-- numAvail == 0) {
             removeFromPool();
         }

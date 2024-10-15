@@ -54,10 +54,14 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
     private final List<PoolChunkListMetric> chunkListMetrics;
 
     // Metrics for allocations and deallocations
+    // 记录normal类型的内存分配次数
     private long allocationsNormal;
     // We need to use the LongCounter here as this is not guarded via synchronized block.
+    // 用于记录small类型的内存分配的次数
     private final LongCounter allocationsSmall = PlatformDependent.newLongCounter();
+    // 用于记录huge类型的内存分配的次数
     private final LongCounter allocationsHuge = PlatformDependent.newLongCounter();
+    // 用于记录huge类型的内存分配 分配了多少内存
     private final LongCounter activeBytesHuge = PlatformDependent.newLongCounter();
 
     private long deallocationsSmall;
@@ -161,6 +165,7 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
                     ? normalizeSize(reqCapacity) : reqCapacity;
             // Huge allocations are never served via the cache so just call allocateHuge
             // 调用allocateHuge进行huge类型的内存块的分配
+            // 内部逻辑就是直接通过unsafe分配出对应大小的ByteBuffer给Chunk对象持有，然后
             allocateHuge(buf, normCapacity);
         }
     }
@@ -194,6 +199,8 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
                 assert s.doNotDestroy && s.elemSize == sizeIdx2size(sizeIdx) : "doNotDestroy=" +
                         s.doNotDestroy + ", elemSize=" + s.elemSize + ", sizeIdx=" + sizeIdx;
                 // 调用s的allocate方法，执行具体的内存分配
+                // 底层逻辑就是去占用PoolSubpage里面的一个表示elemSize内存大小的bitmap的一个位，
+                // 然后返回占用后的handle，给ByteBuf初始化可使用的内存范围
                 long handle = s.allocate();
                 assert handle >= 0;
                 // 调用subpage所持有的chunk的initBufWithSubpage方法对ByteBuf进行初始化
@@ -205,6 +212,8 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
         }
 
         // 如果needsNormalAllocation为true，调用allocateNormal方法进行分配
+        // 即如果不存在sizeIdx对应的 未分配完的 缓存在arena里面的 PoolSubpage，那么需要通过ChunkList里面的Chunk去分配对应大小的内存。
+        // 调用allocateNormal方法进行对应Chunk的内存分配
         if (needsNormalAllocation) {
             // 加锁
             lock();

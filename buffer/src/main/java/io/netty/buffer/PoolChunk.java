@@ -193,8 +193,11 @@ final class PoolChunk<T> implements PoolChunkMetric {
 
     int freeBytes;
 
+    // 当前这个chunk对象所处的ChunkList对象
     PoolChunkList<T> parent;
+    // 位于同一个ChunkList里面的前置Chunk节点
     PoolChunk<T> prev;
+    // 位于同一个ChunkList里面的后置Chunk节点
     PoolChunk<T> next;
 
     // TODO: Test if adding padding helps under contention
