@@ -173,6 +173,8 @@ final class PoolThreadCache {
      * Try to allocate a small buffer out of the cache. Returns {@code true} if successful {@code false} otherwise
      */
     boolean allocateSmall(PoolArena<?> area, PooledByteBuf<?> buf, int reqCapacity, int sizeIdx) {
+        // 首先根据sizeIdx和arena的类型拿到对应的MemoryRegionCache对象
+        // 调用allocate方法，将刚才获取到的MemoryRegionCache传入
         return allocate(cacheForSmall(area, sizeIdx), buf, reqCapacity);
     }
 
@@ -185,6 +187,7 @@ final class PoolThreadCache {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private boolean allocate(MemoryRegionCache<?> cache, PooledByteBuf buf, int reqCapacity) {
+        // 如果传入的MemoryRegionCache为null，直接返回false，表示通过缓存分配内存失败
         if (cache == null) {
             // no cache found so just return false here
             return false;
@@ -335,6 +338,7 @@ final class PoolThreadCache {
         // 如果arena是direct的
         if (area.isDirect()) {
             // 使用smallSubPageDirectCaches
+            // 根据sizeIdx拿到smallSubpageDirectCaches数组对应下标的MemoryRegionCache对象
             return cache(smallSubPageDirectCaches, sizeIdx);
         }
         return cache(smallSubPageHeapCaches, sizeIdx);
@@ -342,8 +346,10 @@ final class PoolThreadCache {
 
     private MemoryRegionCache<?> cacheForNormal(PoolArena<?> area, int sizeIdx) {
         // We need to substract area.numSmallSubpagePools as sizeIdx is the overall index for all sizes.
+        // 需要将sizeIdx 减去 arena的numSmallSubpagePools，才是对应在normalDirectCaches数组的下标位置
         int idx = sizeIdx - area.numSmallSubpagePools;
         if (area.isDirect()) {
+            // 根据idx获取到数组中对应下标的MemoryRegionCache对象
             return cache(normalDirectCaches, idx);
         }
         return cache(normalHeapCaches, idx);
@@ -440,9 +446,12 @@ final class PoolThreadCache {
             if (entry == null) {
                 return false;
             }
-            // 否则调用initBuf方法
+            // 否则调用initBuf方法，
+            // 不同类型的MemoryRegionCache主要体现在initBuf方法的不同，SubpageMemoryRegionCache的调用的是chunk的initBufWithSubpage方法
+            // 而NormalMemoryRegionCache调用的是entry缓存的chunk的initBuf方法
             initBuf(entry.chunk, entry.nioBuffer, entry.handle, buf, reqCapacity, threadCache);
-            // 调用entry的recycle方法将对象回收回对象池
+            // 调用entry的recycle方法将缓存节点Entry回收回对象池
+            // 即将entry持有的chunk handle nioBuffer属性置为null，然后将entry对象回收到对象池中
             entry.recycle();
 
             // allocations is not thread-safe which is fine as this is only called from the same thread all time.
@@ -505,9 +514,13 @@ final class PoolThreadCache {
 
         static final class Entry<T> {
             final Handle<Entry<?>> recyclerHandle;
+            // entry作为缓存节点 缓存的内存chunk
             PoolChunk<T> chunk;
+            // 缓存的nioBuffer
             ByteBuffer nioBuffer;
+            // 默认的缓存的handle为-1
             long handle = -1;
+            //
             int normCapacity;
 
             Entry(Handle<Entry<?>> recyclerHandle) {

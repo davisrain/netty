@@ -71,6 +71,7 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
     private final LongCounter deallocationsHuge = PlatformDependent.newLongCounter();
 
     // Number of thread caches backed by this arena.
+    // 表示缓存了该arena的线程数量
     final AtomicInteger numThreadCaches = new AtomicInteger();
 
     // TODO: Test if adding padding helps under contention

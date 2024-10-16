@@ -70,10 +70,12 @@ public abstract class ObjectPool<T> {
     }
 
     private static final class RecyclerObjectPool<T> extends ObjectPool<T> {
+        // recycler相当于一个委托类
         private final Recycler<T> recycler;
 
         RecyclerObjectPool(final ObjectCreator<T> creator) {
-            // 将传入的creator包装成一个Recycler持有
+            // 创建一个recycler委托类，并且持有ObjectCreator，将委托类的newObject逻辑就实现为调用creator的newObject逻辑。
+            // 并且recycler里面有自己实现的Handle类，用于处理对象的回收操作
              recycler = new Recycler<T>() {
                 @Override
                 protected T newObject(Handle<T> handle) {
@@ -84,7 +86,7 @@ public abstract class ObjectPool<T> {
 
         @Override
         public T get() {
-            // 调用recycler的get方法
+            // 委托给recycler的get方法
             return recycler.get();
         }
     }
