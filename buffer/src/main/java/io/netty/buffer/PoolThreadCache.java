@@ -218,7 +218,7 @@ final class PoolThreadCache {
         if (cache == null) {
             return false;
         }
-        // 获取freed的值，如果是true的是，也直接返回false
+        // 获取freed的值，如果是true的话，也直接返回false
         if (freed.get()) {
             return false;
         }
@@ -463,6 +463,7 @@ final class PoolThreadCache {
 
         /**
          * Clear out this cache and free up all previous cached {@link PoolChunk}s and {@code handle}s.
+         * 清除这个缓存并且释放所有之前缓存的PoolChunk和handle，因为传入的max为Integer.MAX_VALUE
          */
         public final int free(boolean finalizer) {
             return free(Integer.MAX_VALUE, finalizer);
@@ -470,26 +471,38 @@ final class PoolThreadCache {
 
         private int free(int max, boolean finalizer) {
             int numFreed = 0;
+            // 根据max进行遍历
             for (; numFreed < max; numFreed++) {
+                // 从队列中获取entry进行free
                 Entry<T> entry = queue.poll();
                 if (entry != null) {
+                    // 调用freeEntry进行具体的释放操作
                     freeEntry(entry, finalizer);
                 } else {
                     // all cleared
+                    // 如果队列中已经没有元素了，说明已经全部被清理了，返回numFreed
+                    // 表示清理的entry的数量
                     return numFreed;
                 }
             }
+            // 返回清理的entry的数量
             return numFreed;
         }
 
         /**
          * Free up cached {@link PoolChunk}s if not allocated frequently enough.
+         * 如果没有频繁的分配该MemoryRegionCache里面的entry，就释放缓存的PoolChunk
          */
         public final void trim() {
+            // 根据MemoryRegionCache的总容量 和 已经分配的数量
+            // 计算出当前空闲的容量
             int free = size - allocations;
+            // 将统计的分配数量置为0
             allocations = 0;
 
             // We not even allocated all the number that are
+            // 如果空闲的容量大于0，调用free方法，并且将free传入
+            // 表示最大释放 free数量的缓存的entry
             if (free > 0) {
                 free(free, false);
             }
@@ -498,6 +511,7 @@ final class PoolThreadCache {
         @SuppressWarnings({ "unchecked", "rawtypes" })
         private  void freeEntry(Entry entry, boolean finalizer) {
             // Capture entry state before we recycle the entry object.
+            // 获取entry持有的chunk handle nioBuffer normCapacity等属性
             PoolChunk chunk = entry.chunk;
             long handle = entry.handle;
             ByteBuffer nioBuffer = entry.nioBuffer;
@@ -509,6 +523,7 @@ final class PoolThreadCache {
                 entry.recycle();
             }
 
+            // 调用arena的freeChunk释放chunk中handle对应的内存块
             chunk.arena.freeChunk(chunk, handle, normCapacity, sizeClass, nioBuffer, finalizer);
         }
 

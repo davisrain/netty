@@ -286,8 +286,11 @@ final class PoolChunk<T> implements PoolChunkMetric {
     }
 
     private void removeAvailRun(long handle) {
+        // 计算出handle包含的page数量，并且获取到page数量对应的pageIndex
         int pageIdxFloor = arena.pages2pageIdxFloor(runPages(handle));
+        // 获取到对应的runsAvail的优先队列
         LongPriorityQueue queue = runsAvail[pageIdxFloor];
+        // 删除runsAvail优先队列 以及 runsAvailMap里面对应的handle
         removeAvailRun(queue, handle);
     }
 
@@ -602,7 +605,7 @@ final class PoolChunk<T> implements PoolChunkMetric {
         try {
             // collapse continuous runs, successfully collapsed runs
             // will be removed from runsAvail and runsAvailMap
-            // 根据handle合并run，得到最终的runHandle
+            // 根据handle合并 前后的run，得到最终的runHandle
             long finalRun = collapseRuns(handle);
 
             //set run as not used

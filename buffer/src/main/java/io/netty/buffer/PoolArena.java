@@ -318,6 +318,7 @@ abstract class PoolArena<T> extends SizeClasses implements PoolArenaMetric {
     void freeChunk(PoolChunk<T> chunk, long handle, int normCapacity, SizeClass sizeClass, ByteBuffer nioBuffer,
                    boolean finalizer) {
         final boolean destroyChunk;
+        // 加锁，保证当前只有一个线程能操作arena里的chunk
         lock();
         try {
             // We only call this if freeChunk is not called because of the PoolThreadCache finalizer as otherwise this

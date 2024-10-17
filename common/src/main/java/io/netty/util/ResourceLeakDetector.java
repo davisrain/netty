@@ -675,6 +675,7 @@ public class ResourceLeakDetector<T> {
             new AtomicReference<String[]>(EmptyArrays.EMPTY_STRINGS);
 
     public static void addExclusions(Class clz, String ... methodNames) {
+        // 检查传入的methodNames是否都是clz里面的方法
         Set<String> nameSet = new HashSet<String>(Arrays.asList(methodNames));
         // Use loop rather than lookup. This avoids knowing the parameters, and doesn't have to handle
         // NoSuchMethodException.
@@ -690,6 +691,7 @@ public class ResourceLeakDetector<T> {
         String[] newMethods;
         do {
             oldMethods = excludedMethods.get();
+            // 复制old数组，并且延长new数组的长度
             newMethods = Arrays.copyOf(oldMethods, oldMethods.length + 2 * methodNames.length);
             // 该数组内容两两为一组，第一个为类名，第二个为方法名
             for (int i = 0; i < methodNames.length; i++) {

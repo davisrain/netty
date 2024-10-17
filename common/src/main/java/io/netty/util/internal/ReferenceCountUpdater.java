@@ -177,17 +177,19 @@ public abstract class ReferenceCountUpdater<T extends ReferenceCounted> {
     }
 
     private boolean nonFinalRelease0(T instance, int decrement, int rawCnt, int realCnt) {
+        // 如果要减少的引用数量小于realCnt 并且 cas rawCnt成功了，返回false，表示不是最终的释放
         if (decrement < realCnt
                 // all changes to the raw count are 2x the "real" change - overflow is OK
                 && updater().compareAndSet(instance, rawCnt, rawCnt - (decrement << 1))) {
             return false;
         }
+        // 否则，调用retryRelease0方法，传入要减少的cnt的真实数量decrement
         return retryRelease0(instance, decrement);
     }
 
     private boolean retryRelease0(T instance, int decrement) {
         for (;;) {
-            // 获取当前refCnt的值 获取真实refCnt的值，真实refCnt的值等于rawCnt >> 1
+            // 获取当前rawCnt的值 然后根据rawCnt获取真实refCnt的值，真实refCnt的值等于rawCnt >> 1
             int rawCnt = updater().get(instance), realCnt = toLiveRealRefCnt(rawCnt, decrement);
             // 如果要减少的数量 等于 真实的refCnt的值
             if (decrement == realCnt) {
